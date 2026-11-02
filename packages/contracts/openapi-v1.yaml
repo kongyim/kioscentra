@@ -1,0 +1,1254 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kiosentra Agent API",
+    "version": "1.0.0",
+    "description": "Versioned agent contract. All objects are closed; every declared member is required (nullable members must be sent as null). UTC RFC 3339 timestamps; JSON request limit 1 MiB. Device identity is derived from the bearer credential, never supplied by a report. Unknown enum values require a compatible contract update. Development endpoints are documented separately."
+  },
+  "servers": [
+    {
+      "url": "https://central.example/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "deviceBearer": []
+    }
+  ],
+  "paths": {
+    "/enrollments": {
+      "post": {
+        "operationId": "enrollDevice",
+        "summary": "enrollDevice",
+        "description": "Development mock deduplicates enrollment by public key. Production enrollment tokens must be scoped, short-lived and single-use; device key proof and issuance policy belong to the production identity service.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Enrollment"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/agent/credentials/rotate": {
+      "post": {
+        "operationId": "rotateCredential",
+        "summary": "rotateCredential",
+        "description": "Authenticated rotation retains the enrolled public key. Retry the same idempotency key to recover a lost response. Mock allows the old token only for that rotation retry for five minutes. Automatic agent rotation is deferred.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Rotation"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/agent/heartbeat": {
+      "post": {
+        "operationId": "reportHeartbeat",
+        "summary": "reportHeartbeat",
+        "description": "",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Heartbeat"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/agent/inventory": {
+      "put": {
+        "operationId": "reportInventory",
+        "summary": "reportInventory",
+        "description": "",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Inventory"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/agent/metrics": {
+      "post": {
+        "operationId": "reportMetrics",
+        "summary": "reportMetrics",
+        "description": "",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metrics"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/agent/policy": {
+      "get": {
+        "operationId": "getPolicy",
+        "summary": "getPolicy",
+        "description": "Desired state only. Phase 2 agent persists it without changing system settings.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Policy"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Quoted policy revision"
+              }
+            }
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Revision unchanged"
+          }
+        },
+        "parameters": [
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/agent/policy/report": {
+      "post": {
+        "operationId": "reportPolicy",
+        "summary": "reportPolicy",
+        "description": "",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyReport"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/agent/jobs": {
+      "get": {
+        "operationId": "listJobs",
+        "summary": "listJobs",
+        "description": "Unacknowledged jobs with valid leases, ordered by stable ID. Cursor is the last returned ID; empty nextCursor means end. Re-poll from the beginning on each synchronization cycle.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/agent/jobs/{jobId}/ack": {
+      "post": {
+        "operationId": "acknowledgeJob",
+        "summary": "acknowledgeJob",
+        "description": "Rejected jobs require no status report. Idempotent decisions are immutable. Phase 2 agent rejects all jobs safely.",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ack"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/agent/jobs/{jobId}/status": {
+      "post": {
+        "operationId": "reportJobStatus",
+        "summary": "reportJobStatus",
+        "description": "",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobStatus"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/agent/jobs/{jobId}/renew": {
+      "post": {
+        "operationId": "renewJobLease",
+        "summary": "renewJobLease",
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lease"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Renew"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/agent/releases/latest": {
+      "get": {
+        "operationId": "getLatestRelease",
+        "summary": "getLatestRelease",
+        "description": "Null means no approved release. Mock can expose deliberately untrusted simulation metadata.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Release"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/update-status": {
+      "post": {
+        "operationId": "reportUpdateStatus",
+        "summary": "reportUpdateStatus",
+        "description": "",
+        "responses": {
+          "204": {
+            "description": "Accepted; no response body"
+          },
+          "default": {
+            "description": "Standard error; 400 invalid request, 401 invalid credentials, 404 unknown resource, 409 conflicting replay/state, 410 expired lease, 429 throttled, 503 capacity/unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatus"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "deviceBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Opaque device-specific credential; never an enrollment/admin token. TLS verification mandatory."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Persist a UUID before sending. Retry identical payloads with the same key. Same key and route with different payload returns 409. Mock retains 10,000 receipts per device and then fails closed."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Enrollment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enrollmentToken",
+          "publicKey",
+          "hostname",
+          "agentVersion"
+        ],
+        "properties": {
+          "enrollmentToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "publicKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]{43}=$"
+          },
+          "hostname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "agentVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "Credential": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "accessToken",
+          "expiresAt"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accessToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          }
+        }
+      },
+      "Rotation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "publicKey"
+        ],
+        "properties": {
+          "publicKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]{43}=$"
+          }
+        }
+      },
+      "Heartbeat": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agentVersion",
+          "status",
+          "uptimeSeconds",
+          "kioskRunning",
+          "lastActivity",
+          "health"
+        ],
+        "properties": {
+          "agentVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "degraded"
+            ]
+          },
+          "uptimeSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kioskRunning": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lastActivity": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          },
+          "health": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "ProcessMetric": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pid",
+          "cpuPercent",
+          "memoryBytes"
+        ],
+        "properties": {
+          "pid": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "cpuPercent": {
+            "type": "number",
+            "minimum": 0
+          },
+          "memoryBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Metrics": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "collectedAt",
+          "cpuPercent",
+          "memoryTotalBytes",
+          "memoryUsedBytes",
+          "diskTotalBytes",
+          "diskUsedBytes",
+          "processes"
+        ],
+        "properties": {
+          "collectedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          },
+          "cpuPercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "memoryTotalBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "memoryUsedBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "diskTotalBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "diskUsedBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessMetric"
+            },
+            "maxItems": 1000
+          }
+        },
+        "description": "Used memory/disk bytes must not exceed the corresponding total. Process CPU may exceed 100 on multicore systems."
+      },
+      "Software": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "Network": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "addresses"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Inventory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "collectedAt",
+          "hostname",
+          "os",
+          "architecture",
+          "cpu",
+          "memoryBytes",
+          "storageBytes",
+          "software",
+          "runtimes",
+          "networks"
+        ],
+        "properties": {
+          "collectedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          },
+          "hostname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "os": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "architecture": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "cpu": {
+            "type": "string"
+          },
+          "memoryBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "storageBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "software": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Software"
+            },
+            "maxItems": 2000
+          },
+          "runtimes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Software"
+            },
+            "maxItems": 100
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Network"
+            },
+            "maxItems": 100
+          }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "revision",
+          "kioskExecutable",
+          "arguments",
+          "autoLaunch",
+          "monitorIntervalSeconds",
+          "restartPolicy",
+          "expectedShell",
+          "startupEntries"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 1
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "kioskExecutable": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autoLaunch": {
+            "type": "boolean"
+          },
+          "monitorIntervalSeconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "restartPolicy": {
+            "type": "string",
+            "enum": [
+              "never",
+              "on_failure"
+            ]
+          },
+          "expectedShell": {
+            "type": "string"
+          },
+          "startupEntries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PolicyReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "observedAt",
+          "compliance",
+          "drift",
+          "errors"
+        ],
+        "properties": {
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          },
+          "compliance": {
+            "type": "string",
+            "enum": [
+              "compliant",
+              "drifted",
+              "unknown"
+            ]
+          },
+          "drift": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Release": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "packageType",
+          "url",
+          "sha256",
+          "signature",
+          "keyId",
+          "sizeBytes"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "packageType": {
+            "type": "string",
+            "enum": [
+              "msi",
+              "exe",
+              "zip",
+              "kiosk",
+              "agent",
+              "configuration",
+              "simulation"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "signature": {
+            "type": "string",
+            "contentEncoding": "base64"
+          },
+          "keyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "description": "Detached Ed25519 signature; canonical manifest representation and trust provisioning must be frozen before deployment execution, as described in docs/deployment/self-update.md. Simulation metadata is untrusted and must never be installed."
+      },
+      "Job": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "createdAt",
+          "leaseExpiresAt",
+          "targetVersion",
+          "release"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "deployment",
+              "agent_update",
+              "diagnostics"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          },
+          "leaseExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          },
+          "targetVersion": {
+            "type": "string"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Release"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "JobPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        }
+      },
+      "Ack": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accepted",
+          "reason"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "progress",
+          "message",
+          "updatedAt"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "downloading",
+              "verifying",
+              "installing",
+              "validating",
+              "succeeded",
+              "failed",
+              "rolling_back",
+              "rolled_back",
+              "cancelled"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          }
+        }
+      },
+      "Renew": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "leaseSeconds"
+        ],
+        "properties": {
+          "leaseSeconds": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 300
+          }
+        }
+      },
+      "Lease": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "leaseExpiresAt"
+        ],
+        "properties": {
+          "leaseExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          }
+        }
+      },
+      "UpdateStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "targetVersion",
+          "state",
+          "message",
+          "updatedAt"
+        ],
+        "properties": {
+          "targetVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "staged",
+              "switching",
+              "verifying",
+              "succeeded",
+              "failed",
+              "rolling_back",
+              "rolled_back"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|\\+00:00)$"
+          }
+        }
+      }
+    }
+  }
+}

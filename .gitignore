@@ -1,0 +1,12 @@
+/bin/
+/.tools/
+/.cache/
+*.db
+*.db-shm
+*.db-wal
+.env
+*.exe
+node_modules/
+dist/
+coverage.out
+/.local-state/
