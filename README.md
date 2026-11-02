@@ -36,33 +36,84 @@ not the correct multi-module command. Race tests need a supported host and C too
 
 ## Local development
 
-In terminal 1, generate two distinct development tokens and keep the enrollment token
-available for terminal 2. Do not commit or log their values.
+These copy-and-paste commands are for macOS/Linux development. Run each terminal from the
+repository root. They use matching, hardcoded **local-development-only** credentials.
+Stop any previously running mock server and agent before switching to this quick start.
+
+### Terminal 1 — start the mock server
 
 ```sh
-export KIOSENTRA_MOCK_ENROLLMENT_TOKEN="$(openssl rand -hex 24)"
-export KIOSENTRA_MOCK_ADMIN_TOKEN="$(openssl rand -hex 24)"
+# Local development examples. Recommended: change these for your own environment.
+# If you change the enrollment token, use the same value in terminal 2.
+export KIOSENTRA_MOCK_ENROLLMENT_TOKEN='kiosentra-local-enrollment-change-me'
+# Keep the admin token different from the enrollment token; also update terminal 3.
+export KIOSENTRA_MOCK_ADMIN_TOKEN='kiosentra-local-admin-change-me'
+
 go run ./tools/mock-server/cmd/mock-server
 ```
 
-In terminal 2:
+Leave this server running while starting the agent. The mock binds to loopback only.
+
+### Terminal 2 — start the agent with fresh development state
 
 ```sh
 export KIOSENTRA_SERVER_URL=http://127.0.0.1:8080
 export KIOSENTRA_DEVELOPMENT=true
-export KIOSENTRA_STATE_DIR="$PWD/.local-state"
-export KIOSENTRA_ENROLLMENT_TOKEN='<same enrollment token as terminal 1>'
-# Non-Windows development only: keep this value outside the repository and reuse it on restart.
-export KIOSENTRA_DEVELOPMENT_KEY="$(openssl rand -base64 32)"
+# Must match KIOSENTRA_MOCK_ENROLLMENT_TOKEN in terminal 1.
+# Recommended: change both copies together for your own environment.
+export KIOSENTRA_ENROLLMENT_TOKEN='kiosentra-local-enrollment-change-me'
+
+# Public example key for local development only: base64 of exactly 32 bytes.
+# Recommended: replace it with a key generated ONCE using openssl rand -base64 32.
+# Keep that replacement key unchanged whenever you reuse its state directory.
+export KIOSENTRA_DEVELOPMENT_KEY='AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8='
+
+# A fresh temporary directory avoids credentials from previous mock-server sessions.
+# This preserves any existing .local-state directory and does not read saved key files.
+export KIOSENTRA_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kiosentra-dev.XXXXXX")"
+printf 'Development state directory: %s\n' "$KIOSENTRA_STATE_DIR"
+
 go run ./apps/agent/cmd/kiosentra-agent --mode=console
 ```
 
-Windows uses account-scoped DPAPI instead of `KIOSENTRA_DEVELOPMENT_KEY`. Non-Windows
-console mode is a development harness, not a supported production macOS agent.
-Stop with Ctrl+C. Restart with the same state directory and encryption key/account;
-enrollment is reused and pending telemetry drains after server connectivity returns.
-The mock loses all devices on restart: use a **new** state directory to re-enroll against
-a restarted mock. Existing production credentials are never silently reset.
+You should see `agent started` followed by `device enrolled`. The agent sends real metrics
+and heartbeats every 30 seconds. Successful reports are not printed, and there is no graphical
+UI yet; inspect the data using terminal 3.
+
+### Terminal 3 — inspect received reports
+
+```sh
+# Must match KIOSENTRA_MOCK_ADMIN_TOKEN in terminal 1.
+# Recommended: update this value if you changed the admin token above.
+export KIOSENTRA_MOCK_ADMIN_TOKEN='kiosentra-local-admin-change-me'
+
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $KIOSENTRA_MOCK_ADMIN_TOKEN" \
+  http://127.0.0.1:8080/dev/state | python3 -m json.tool
+```
+
+### Restarting and preserving state
+
+- **Restart only the agent:** press Ctrl+C in terminal 2 and rerun just
+  `go run ./apps/agent/cmd/kiosentra-agent --mode=console`. This keeps the same identity,
+  encryption key and state directory in that terminal.
+- **Restart the mock server:** stop the agent too, restart terminal 1, then repeat the
+  entire terminal 2 block. The mock forgets registrations on restart, so fresh state is needed
+  even when its hardcoded tokens stay unchanged.
+- **Repeat the entire terminal 2 block:** this always creates a fresh development identity.
+  Previous state is left intact; temporary directories may later be cleared by the OS.
+- **Resume in a new terminal without restarting the mock:** use the same encryption key and
+  replace the `mktemp` line with `export KIOSENTRA_STATE_DIR='/previously/printed/path'`.
+
+An `invalid_device_credential` error means the saved device credential is not accepted by the
+current mock; use fresh state by repeating terminal 2. An `invalid_enrollment_token` error means
+the enrollment-token values do not match. A `cipher: message authentication failed` error means
+a state directory was reused with a different encryption key; restore its original key or start
+with fresh development state. No manual deletion of `.local-state` is needed for this quick start.
+
+Windows uses account-scoped DPAPI instead of `KIOSENTRA_DEVELOPMENT_KEY`; see the Windows
+Service guide below. Non-Windows console mode is a development harness, not a supported
+production macOS agent.
 
 See [local development](docs/development/local.md), [mock API examples](docs/api/mock-server.md),
 and [Windows Service setup](docs/deployment/windows-service.md).

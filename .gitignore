@@ -10,3 +10,5 @@ node_modules/
 dist/
 coverage.out
 /.local-state/
+# Local development state variants and backups.
+/.local-state.*/
