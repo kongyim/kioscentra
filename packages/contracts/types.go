@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -80,12 +81,15 @@ func required(b []byte, t reflect.Type) error {
 		}
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
-			name := f.Tag.Get("json")
+			name, options, _ := strings.Cut(f.Tag.Get("json"), ",")
 			if name == "" || name == "-" {
 				continue
 			}
 			raw, ok := fields[name]
 			if !ok {
+				if options == "omitempty" {
+					continue
+				}
 				return fmt.Errorf("missing required field %s", name)
 			}
 			if e := required(raw, f.Type); e != nil {

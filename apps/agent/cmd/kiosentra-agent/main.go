@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 	"kiosentra/apps/agent/internal/app"
 	"kiosentra/apps/agent/internal/configuration"
 	"kiosentra/apps/agent/internal/service"
+	"kiosentra/apps/agent/internal/ui"
+	"kiosentra/apps/agent/internal/updater"
 )
 
 func main() {
@@ -24,15 +27,28 @@ func main() {
 	}
 }
 func run() error {
-	mode := flag.String("mode", "console", "console, service, or ui (deferred)")
+	mode := flag.String("mode", "console", "console, service, ui, or updater (simulation only)")
 	version := flag.Bool("version", false, "print build information")
 	flag.Parse()
 	if *version {
 		fmt.Printf("Kiosentra %s (%s), API v1\n", app.Version, app.Commit)
 		return nil
 	}
+	if *mode == "updater" {
+		c, e := configuration.Load()
+		if e != nil {
+			return e
+		}
+		if !c.SimulatedUpdates {
+			return errors.New("updater mode requires explicit simulated-update opt-in")
+		}
+		key, _ := base64.StdEncoding.DecodeString(c.SimulationPublicKey)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return updater.Run(ctx, c.StateDir, key)
+	}
 	if *mode == "ui" {
-		return errors.New("UI mode is scheduled for Phase 4")
+		return ui.Run()
 	}
 	if *mode != "console" && *mode != "service" {
 		return errors.New("invalid mode")

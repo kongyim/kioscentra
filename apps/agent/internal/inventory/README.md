@@ -1,5 +1,5 @@
-# inventory
+# Phase 3
 
-Reserved for phase 3. No implementation yet. Windows SCM and DPAPI already live
-in the service and storage packages. Non-Windows service mode and production credential
-storage return explicit unsupported errors. Phase 2 job polling/rejection is in app.
+Timed hardware/network and Windows software/runtime inventory with per-source diagnostics. Custom kiosk versions come from file metadata, never command execution.
+
+See [behavior and validation](../../../../docs/development/phase3.md).

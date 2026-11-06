@@ -3,6 +3,7 @@
 package mock
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -23,6 +24,7 @@ import (
 
 type Options struct {
 	EnrollmentToken, AdminToken string
+	SimulationPrivateKey        string
 	Now                         func() time.Time
 }
 type device struct {
@@ -66,6 +68,12 @@ type Server struct {
 func New(o Options) (*Server, error) {
 	if len(o.EnrollmentToken) < 16 || len(o.AdminToken) < 16 || o.EnrollmentToken == o.AdminToken {
 		return nil, fmt.Errorf("distinct enrollment and admin tokens of at least 16 characters required")
+	}
+	if o.SimulationPrivateKey != "" {
+		key, e := base64.StdEncoding.DecodeString(o.SimulationPrivateKey)
+		if e != nil || len(key) != ed25519.PrivateKeySize {
+			return nil, fmt.Errorf("simulation private key must be base64 Ed25519 private key")
+		}
 	}
 	if o.Now == nil {
 		o.Now = time.Now
@@ -338,6 +346,14 @@ func (s *Server) jobAction(w http.ResponseWriter, path string, b []byte, d *devi
 			fail(w, 409, "job_terminal")
 			return
 		}
+		from := ""
+		if j.Status != nil {
+			from = j.Status.State
+		}
+		if !contracts.DeploymentTransition(from, v.State) {
+			fail(w, 409, "invalid_transition")
+			return
+		}
 		j.Status = &v
 		finish(204, nil)
 	case "renew":
@@ -367,9 +383,20 @@ type CreateJob struct {
 	Kind          string `json:"kind"`
 	TargetVersion string `json:"targetVersion"`
 	LeaseSeconds  int    `json:"leaseSeconds"`
+	Scenario      string `json:"scenario,omitempty"`
 }
 
 func (v CreateJob) Validate() error {
+	if v.Scenario != "" {
+		scenarioCheck := contracts.SimulationScenario
+		if v.Kind == "agent_update" {
+			scenarioCheck = contracts.UpdateSimulationScenario
+		}
+		if _, e := scenarioCheck("https://simulation.invalid/" + v.Scenario); e != nil {
+			return e
+		}
+	}
+
 	if !contracts.ValidID(v.DeviceID) || (v.Kind != "deployment" && v.Kind != "agent_update" && v.Kind != "diagnostics") || v.LeaseSeconds < 30 || v.LeaseSeconds > 3600 || len(v.TargetVersion) > 256 {
 		return fmt.Errorf("invalid development job")
 	}
@@ -415,6 +442,13 @@ func (s *Server) dev(w http.ResponseWriter, r *http.Request) {
 		if v.Kind != "diagnostics" {
 			digest := sha256.Sum256([]byte("simulation only"))
 			j.Release = &contracts.Release{Version: v.TargetVersion, PackageType: "simulation", URL: "https://invalid.example/simulation-only", SHA256: hex.EncodeToString(digest[:]), Signature: base64.StdEncoding.EncodeToString(make([]byte, 64)), KeyID: "mock-untrusted", SizeBytes: 15}
+		}
+		if (j.Kind == "deployment" || j.Kind == "agent_update") && s.options.SimulationPrivateKey != "" {
+			key, _ := base64.StdEncoding.DecodeString(s.options.SimulationPrivateKey)
+			if e = contracts.SignSimulation(v.DeviceID, &j, v.Scenario, ed25519.PrivateKey(key)); e != nil {
+				fail(w, 400, "invalid_simulation")
+				return
+			}
 		}
 		if j.Kind == "agent_update" {
 			s.release = j.Release

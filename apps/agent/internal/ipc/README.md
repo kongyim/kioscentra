@@ -1,5 +1,7 @@
-# ipc
+# Local IPC — Phase 4
 
-Reserved for phase 4. No implementation yet. Windows SCM and DPAPI already live
-in the service and storage packages. Non-Windows service mode and production credential
-storage return explicit unsupported errors. Phase 2 job polling/rejection is in app.
+Authenticated/encrypted bounded frames over ACL-restricted Windows named pipes; mode-0600
+Unix sockets for non-Windows development. A safe snapshot and explicit maintenance scopes
+are the entire protocol. The UI never opens service storage. No HTTP endpoint is exposed.
+
+See [protocol, provisioning and limitations](../../../../docs/development/phase4.md).

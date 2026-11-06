@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -136,5 +137,42 @@ func TestLockAndWrongKey(t *testing.T) {
 	}
 	if _, e = q.Open(b); e == nil {
 		t.Fatal("wrong key accepted")
+	}
+}
+
+func TestConsoleProjectionExcludesCredentialsAndOutbox(t *testing.T) {
+	s, e := Open(t.TempDir(), protector(t), 10)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	for _, key := range []string{"identity", "credential", "unexpected-secret"} {
+		if e = s.Put(ctx, key, "DO-NOT-EXPOSE", true); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e = s.Enqueue(ctx, "POST", "/agent/metrics", map[string]string{"private": "OUTBOX-PRIVATE"}); e != nil {
+		t.Fatal(e)
+	}
+	out, e := s.ConsoleData(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := out["identity"]; ok {
+		t.Fatal("identity exposed")
+	}
+	if _, ok := out["credential"]; ok {
+		t.Fatal("credential exposed")
+	}
+	encoded, e := json.Marshal(out)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if bytes.Contains(encoded, []byte("DO-NOT-EXPOSE")) || bytes.Contains(encoded, []byte("OUTBOX-PRIVATE")) {
+		t.Fatal("private payload exposed")
+	}
+	if out["queuedEvents"] != 1 || out["heartbeat"] != nil {
+		t.Fatal(out)
 	}
 }

@@ -25,8 +25,8 @@ boundaries only. The agent polls at most ten pages per cycle.
 
 Policy responses include a quoted revision ETag and support `If-None-Match` / 304. The current
 agent fetches the full policy each cycle and caches its typed revision; conditional client
-fetching is a later optimization. Inventory and policy reports have typed clients and mock
-handlers but are not automatically produced before Phase 3.
+fetching is a later optimization. Phase 3 automatically produces inventory and
+read-only policy reports through the durable outbox; see [observation scope](../development/phase3.md).
 
 Rotation changes the bearer credential while retaining the enrolled public key. The mock
 accepts the old token for five minutes **only** to replay the original rotation request.
@@ -39,3 +39,21 @@ The production signing/trust pipeline and rollout targeting remain deferred.
 
 Errors contain `code`, `message`, `requestId`. Clients log status/code without server body or
 credentials. The mock has no production server or admin UI and exposes no arbitrary execution.
+
+## Phase 5 simulation statuses
+
+The wire objects are unchanged. Opted-in agents may accept signed development simulation
+jobs. They persist and report `accepted`, then advance through downloading, verifying,
+installing, validating and succeeded; installation/validation failures may enter rolling_back
+and rolled_back. Active states may fail or cancel; terminal states cannot transition.
+The mock now enforces this graph. Status retries retain their event IDs; lease-renewal retries
+retain their checkpoint IDs. See [Phase 5](../development/phase5.md) for the device-bound
+simulation signing convention and the explicit lack of real installation effects.
+
+## Phase 6 simulated update reports
+
+The existing update-status wire object is unchanged. Signed `agent_update` simulations report
+staged, switching, verifying and a terminal success/failure/rollback outcome through the device's
+`/agent/update-status` route. These durable events use stable request IDs across retries. They are
+separate from deployment job statuses and contain target version rather than job ID; local recovery
+history retains the job ID. Actual agent-update packages remain unsupported.

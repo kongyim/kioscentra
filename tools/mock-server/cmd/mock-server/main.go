@@ -32,7 +32,7 @@ func run() error {
 	if ip == nil || !ip.IsLoopback() {
 		return errors.New("development mock must bind a literal loopback address")
 	}
-	handler, e := mock.New(mock.Options{EnrollmentToken: os.Getenv("KIOSENTRA_MOCK_ENROLLMENT_TOKEN"), AdminToken: os.Getenv("KIOSENTRA_MOCK_ADMIN_TOKEN")})
+	handler, e := mock.New(mock.Options{EnrollmentToken: os.Getenv("KIOSENTRA_MOCK_ENROLLMENT_TOKEN"), AdminToken: os.Getenv("KIOSENTRA_MOCK_ADMIN_TOKEN"), SimulationPrivateKey: os.Getenv("KIOSENTRA_MOCK_SIMULATION_PRIVATE_KEY")})
 	if e != nil {
 		return e
 	}

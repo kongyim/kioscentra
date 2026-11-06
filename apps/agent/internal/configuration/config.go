@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"net"
 	"net/url"
@@ -14,6 +16,9 @@ import (
 type Config struct {
 	ServerURL, StateDir, EnrollmentToken, DevelopmentKey string
 	Development                                          bool
+	SimulatedDeployments                                 bool
+	SimulatedUpdates                                     bool
+	SimulationPublicKey                                  string
 	Interval, RequestTimeout                             time.Duration
 	MaxQueue                                             int
 }
@@ -53,9 +58,31 @@ func Load() (Config, error) {
 		}
 		c.Interval = d
 	}
+	c.SimulationPublicKey = os.Getenv("KIOSENTRA_SIMULATION_PUBLIC_KEY")
+	if v := os.Getenv("KIOSENTRA_SIMULATED_DEPLOYMENTS"); v != "" {
+		b, e := strconv.ParseBool(v)
+		if e != nil {
+			return c, e
+		}
+		c.SimulatedDeployments = b
+	}
+	if v := os.Getenv("KIOSENTRA_SIMULATED_UPDATES"); v != "" {
+		b, e := strconv.ParseBool(v)
+		if e != nil {
+			return c, e
+		}
+		c.SimulatedUpdates = b
+	}
 	return c, c.Validate()
 }
 func (c Config) Validate() error {
+	if c.SimulatedDeployments || c.SimulatedUpdates {
+		key, e := base64.StdEncoding.DecodeString(c.SimulationPublicKey)
+		if !c.Development || e != nil || len(key) != ed25519.PublicKeySize {
+			return errors.New("simulated deployments/updates require development mode and a base64 Ed25519 public key")
+		}
+	}
+
 	u, e := url.Parse(c.ServerURL)
 	if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return errors.New("server URL must be an origin without credentials, path or query")

@@ -15,8 +15,14 @@ import (
 
 	"kiosentra/apps/agent/internal/api"
 	"kiosentra/apps/agent/internal/configuration"
+	"kiosentra/apps/agent/internal/deployment"
+	"kiosentra/apps/agent/internal/diagnostics"
+	"kiosentra/apps/agent/internal/inventory"
+	"kiosentra/apps/agent/internal/ipc"
 	"kiosentra/apps/agent/internal/monitoring"
+	win "kiosentra/apps/agent/internal/platform/windows"
 	"kiosentra/apps/agent/internal/storage"
+	"kiosentra/apps/agent/internal/watchdog"
 	"kiosentra/packages/contracts"
 )
 
@@ -28,16 +34,23 @@ type Identity struct {
 	PrivateKey string `json:"privateKey"`
 }
 type Agent struct {
-	Config      configuration.Config
-	Store       *storage.Store
-	Client      *api.Client
-	Collector   monitoring.Collector
-	Log         *slog.Logger
-	credential  contracts.Credential
-	identity    Identity
-	hostname    string
-	failures    int
-	nextAttempt time.Time
+	Actions             <-chan string
+	LaunchUpdater       func(string, ed25519.PublicKey) error
+	Config              configuration.Config
+	Store               *storage.Store
+	Client              *api.Client
+	Collector           monitoring.Collector
+	Inventory           inventory.Collector
+	Processes           watchdog.Observer
+	PolicyObserver      func(context.Context, contracts.Policy) contracts.PolicyReport
+	nextInventory       time.Time
+	inventoryExecutable string
+	Log                 *slog.Logger
+	credential          contracts.Credential
+	identity            Identity
+	hostname            string
+	failures            int
+	nextAttempt         time.Time
 }
 
 func New(c configuration.Config, s *storage.Store, client *api.Client, collector monitoring.Collector, log *slog.Logger) (*Agent, error) {
@@ -58,7 +71,9 @@ func (a *Agent) Initialize(ctx context.Context) error {
 		RequestTimeoutSeconds int64
 		MaxQueue              int
 		Development           bool
-	}{a.Config.ServerURL, int64(a.Config.Interval / time.Second), int64(a.Config.RequestTimeout / time.Second), a.Config.MaxQueue, a.Config.Development}
+		SimulatedDeployments  bool
+		SimulatedUpdates      bool
+	}{a.Config.ServerURL, int64(a.Config.Interval / time.Second), int64(a.Config.RequestTimeout / time.Second), a.Config.MaxQueue, a.Config.Development, a.Config.SimulatedDeployments, a.Config.SimulatedUpdates}
 	if e := a.Store.Put(ctx, "configuration", snapshot, false); e != nil {
 		return e
 	}
@@ -106,25 +121,107 @@ func Backoff(failures int) time.Duration {
 	cap := time.Second * time.Duration(1<<failures)
 	return time.Second + time.Duration(mathrand.Int64N(int64(cap)))
 }
+
+// sample persists telemetry with the parent context so an expired collector deadline
+// cannot suppress the heartbeat or the diagnostics explaining that timeout.
 func (a *Agent) sample(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, a.Config.RequestTimeout)
-	defer cancel()
-	metrics, uptime, e := a.Collector.Collect(ctx)
-	health := "ok"
-	status := "online"
-	if e != nil {
-		health = "metrics_unavailable"
-		status = "degraded"
-		a.Log.Warn("metrics collection failed", "error", e)
-	} else {
-		if e = metrics.Validate(); e != nil {
-			return e
+	collectCtx, cancel := context.WithTimeout(ctx, a.Config.RequestTimeout)
+	metrics, uptime, collectErr := a.Collector.Collect(collectCtx)
+	cancel()
+	health, status := "ok", "online"
+	results := []diagnostics.Result{}
+	if d, ok := a.Collector.(interface{ CollectionDiagnostics() []diagnostics.Result }); ok {
+		results = append(results, d.CollectionDiagnostics()...)
+	}
+	if collectErr != nil {
+		health, status = "metrics_unavailable", "degraded"
+		a.Log.Warn("metrics collection failed", "error", collectErr)
+	}
+	var policy contracts.Policy
+	policyErr := a.Store.Get(ctx, "policy", &policy, false)
+	if policyErr != nil && !errors.Is(policyErr, sql.ErrNoRows) {
+		return policyErr
+	}
+	var running *bool
+	if a.Processes != nil && policyErr == nil {
+		r := diagnostics.Run(ctx, a.Config.RequestTimeout, "kiosk-process", func(child context.Context) error {
+			var err error
+			metrics.Processes, running, err = a.Processes.Observe(child, policy.KioskExecutable)
+			return err
+		})
+		results = append(results, r)
+		if r.Error != "" {
+			health, status = "process_unavailable", "degraded"
 		}
-		if e = a.Store.Enqueue(ctx, "POST", "/agent/metrics", metrics); e != nil {
-			return e
+		if running != nil && !*running {
+			health, status = "kiosk_stopped", "degraded"
 		}
 	}
-	return a.Store.Enqueue(ctx, "POST", "/agent/heartbeat", contracts.Heartbeat{AgentVersion: Version, Status: status, UptimeSeconds: uptime, KioskRunning: nil, LastActivity: time.Now().UTC(), Health: health})
+	var errs []error
+	if collectErr == nil {
+		if err := metrics.Validate(); err != nil {
+			errs = append(errs, err)
+		} else if err = a.Store.Enqueue(ctx, "POST", "/agent/metrics", metrics); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	heartbeat := contracts.Heartbeat{AgentVersion: Version, Status: status, UptimeSeconds: uptime, KioskRunning: running, LastActivity: time.Now().UTC(), Health: health}
+	if err := a.Store.Put(ctx, "heartbeat", heartbeat, false); err != nil {
+		errs = append(errs, err)
+	}
+	if err := a.Store.Enqueue(ctx, "POST", "/agent/heartbeat", heartbeat); err != nil {
+		errs = append(errs, err)
+	}
+	// The latest partial readings remain local; v1 metrics has no unavailable fields.
+	if err := a.Store.Put(ctx, "monitoring-snapshot", struct {
+		Metrics     contracts.Metrics
+		Diagnostics []diagnostics.Result
+	}{metrics, results}, false); err != nil {
+		errs = append(errs, err)
+	}
+	if a.PolicyObserver != nil && policyErr == nil {
+		var report contracts.PolicyReport
+		r := diagnostics.Run(ctx, a.Config.RequestTimeout, "policy", func(child context.Context) error { report = a.PolicyObserver(child, policy); return nil })
+		if r.Error != "" {
+			report.Errors = append(report.Errors, r.Error)
+			if report.Compliance == "compliant" {
+				report.Compliance = "unknown"
+			}
+		}
+		if err := report.Validate(); err != nil {
+			errs = append(errs, err)
+		} else {
+			if err = a.Store.Put(ctx, "policy-observation", report, false); err != nil {
+				errs = append(errs, err)
+			}
+			if err = a.Store.Enqueue(ctx, "POST", "/agent/policy/report", report); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	if a.Inventory != nil && (time.Now().After(a.nextInventory) || policy.KioskExecutable != a.inventoryExecutable) {
+		child, done := context.WithTimeout(ctx, a.Config.RequestTimeout)
+		inv, ds, err := a.Inventory.Collect(child, policy.KioskExecutable)
+		done()
+		if err != nil {
+			a.Log.Warn("inventory incomplete", "error", err)
+		}
+		if err = a.Store.Put(ctx, "inventory-snapshot", struct {
+			Inventory   contracts.Inventory
+			Diagnostics []diagnostics.Result
+		}{inv, ds}, false); err != nil {
+			errs = append(errs, err)
+		}
+		if err = inv.Validate(); err != nil {
+			errs = append(errs, err)
+		} else if err = a.Store.Enqueue(ctx, "PUT", "/agent/inventory", inv); err != nil {
+			errs = append(errs, err)
+		} else {
+			a.nextInventory = time.Now().Add(time.Hour)
+			a.inventoryExecutable = policy.KioskExecutable
+		}
+	}
+	return errors.Join(errs...)
 }
 func (a *Agent) sync(ctx context.Context) error {
 	if a.credential.AccessToken == "" {
@@ -167,7 +264,8 @@ func (a *Agent) sync(ctx context.Context) error {
 	if e = a.Store.Put(ctx, "policy", p, false); e != nil {
 		return e
 	}
-	// All execution is disabled in this milestone. Preserve each decision before sending it.
+	// Admission is fail-closed; only opted-in signed simulations can be accepted.
+	engine := a.deploymentEngine()
 	cursor := ""
 	seen := map[string]bool{}
 	for page := 0; page < 10; page++ {
@@ -182,11 +280,17 @@ func (a *Agent) sync(ctx context.Context) error {
 			if e = j.Validate(); e != nil {
 				return e
 			}
-			reason := "job execution is disabled in Phase 2"
-			if !j.LeaseExpiresAt.After(time.Now()) {
-				reason = "job lease expired"
+			var decision contracts.Ack
+			var err error
+			if j.Kind == "agent_update" {
+				decision, err = a.updateDecision(ctx, j)
+			} else {
+				decision, err = engine.Decision(ctx, j)
 			}
-			if e = a.Store.RememberJob(ctx, j, contracts.Ack{Accepted: false, Reason: reason}); e != nil {
+			if err != nil {
+				return err
+			}
+			if e = a.Store.RememberJob(ctx, j, decision); e != nil {
 				return e
 			}
 		}
@@ -208,6 +312,11 @@ func (a *Agent) sync(ctx context.Context) error {
 		var he *api.HTTPError
 		if errors.As(e, &he) && (he.Status == 404 || he.Status == 410) {
 			a.Log.Warn("job no longer available", "job_id", d.ID)
+			if d.Job.Kind == "agent_update" {
+				if err := a.Store.CompleteUpdate(ctx, d.ID); err != nil {
+					return err
+				}
+			}
 			e = nil
 		}
 		if e != nil {
@@ -216,13 +325,36 @@ func (a *Agent) sync(ctx context.Context) error {
 		if e = a.Store.MarkReported(ctx, d.ID); e != nil {
 			return e
 		}
-		a.Log.Info("job rejected", "job_id", d.ID, "reason", d.Ack.Reason)
+		a.Log.Info("job decision acknowledged", "job_id", d.ID, "accepted", d.Ack.Accepted, "reason", d.Ack.Reason)
 	}
-	return nil
+	if e = a.recoverUpdates(ctx, true); e != nil {
+		return e
+	}
+	if e = a.flushUpdates(ctx); e != nil {
+		return e
+	}
+	return engine.Advance(ctx)
+}
+
+func (a *Agent) deploymentEngine() *deployment.Engine {
+	key, _ := base64.StdEncoding.DecodeString(a.Config.SimulationPublicKey)
+	return &deployment.Engine{Store: a.Store, Remote: a.Client, Enabled: a.Config.SimulatedDeployments, PublicKey: key, DeviceID: a.credential.DeviceID}
 }
 
 // Cycle keeps collecting while communications are in backoff. Outbox capacity is bounded.
-func (a *Agent) Cycle(ctx context.Context) error {
+func (a *Agent) Cycle(ctx context.Context) (result error) {
+	defer func() {
+		status := map[string]any{"observedAt": time.Now().UTC(), "centralReachable": result == nil && a.failures == 0, "consecutiveFailures": a.failures}
+		if err := a.Store.Put(ctx, "sync-status", status, false); err != nil && ctx.Err() == nil {
+			a.Log.Warn("sync status not saved", "error", err)
+		}
+	}()
+	if e := a.recoverUpdates(ctx, false); e != nil {
+		a.Log.Warn("update recovery deferred", "error", e)
+	}
+	if e := a.deploymentEngine().Reconcile(ctx); e != nil {
+		return e
+	}
 	if e := a.sample(ctx); e != nil {
 		a.Log.Warn("telemetry not queued", "error", e)
 	}
@@ -257,10 +389,27 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.Log.Info("agent stopped")
 			return nil
 		case <-ticker.C:
+		case action := <-a.Actions:
+			if action == "stop_service" {
+				a.Log.Info("service stopped by authorized technician")
+				return nil
+			}
+			if action == "cancel_deployment" {
+				if e := a.deploymentEngine().Cancel(ctx); e != nil {
+					a.Log.Error("simulation cancellation failed", "error", e)
+				}
+			}
+			if action == "refresh_inventory" {
+				a.nextInventory = time.Time{}
+			}
 		}
 	}
 }
 func Run(ctx context.Context, log *slog.Logger) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	logs := &ipc.LogBuffer{}
+	log = slog.New(logs.Handler(log.Handler()))
 	c, e := configuration.Load()
 	if e != nil {
 		return e
@@ -290,9 +439,18 @@ func Run(ctx context.Context, log *slog.Logger) error {
 			log.Error("state close failed", "error", e)
 		}
 	}()
-	a, e := New(c, s, api.New(c.ServerURL, c.RequestTimeout), monitoring.Basic{DiskPath: c.StateDir}, log)
+	a, e := New(c, s, api.New(c.ServerURL, c.RequestTimeout), &monitoring.Basic{DiskPath: c.StateDir}, log)
 	if e != nil {
 		return e
+	}
+	a.Inventory = inventory.System{DiskPath: c.StateDir}
+	a.Processes = watchdog.Processes{}
+	a.PolicyObserver = win.Policy
+	cleanup, err := a.startConsole(ctx, logs)
+	if err != nil {
+		log.Error("local console IPC unavailable; service continues", "error", err)
+	} else {
+		defer cleanup()
 	}
 	return a.Run(ctx)
 }

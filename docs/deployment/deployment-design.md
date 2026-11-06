@@ -1,10 +1,11 @@
-# Deployment engine design — Phase 5, not implemented
+# Deployment engine design — simulation implemented, real installation deferred
 
 The v1 contract defines pending, accepted, downloading, verifying, installing, validating,
 succeeded, failed, rolling_back, rolled_back and cancelled states. Phase 2 records a rejection
-and never transitions into execution. The mock is a protocol simulator, not an installer.
+and never transitions into execution by default. Phase 5 adds an opt-in signed simulation
+engine; see [implemented scope](../development/phase5.md). The mock is a protocol simulator, not an installer.
 
-The future engine must validate device-scoped authorization, package-type allowlists, release
+A future real-installation engine must validate device-scoped authorization, package-type allowlists, release
 signature/trust key and replay/lease state before accepting work. Persist transitions before
 external side effects. Download to a bounded staging directory; constrain HTTPS origins, sizes,
 timeouts and redirect behavior. Resume only with matching content validators; verify complete

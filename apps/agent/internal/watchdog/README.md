@@ -1,5 +1,5 @@
-# watchdog
+# Phase 3
 
-Reserved for phase 3. No implementation yet. Windows SCM and DPAPI already live
-in the service and storage packages. Non-Windows service mode and production credential
-storage return explicit unsupported errors. Phase 2 job polling/rejection is in app.
+Read-only kiosk process observation by canonical absolute executable path. Reports process CPU, RSS and tri-state presence. No process launch, termination or restart.
+
+See [behavior and validation](../../../../docs/development/phase3.md).

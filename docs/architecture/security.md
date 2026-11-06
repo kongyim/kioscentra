@@ -1,7 +1,7 @@
 # Security model
 
 The agent is for explicitly managed devices. There is no remote shell, script execution,
-installer launch or policy remediation. All jobs are rejected in Phase 2.
+installer launch or policy remediation. Real execution remains disabled. Phase 5 allows only opted-in signed development simulations.
 
 HTTPS uses Go's normal certificate validation and system trust roots. Redirects are refused,
 including redirects to another credential recipient. HTTP is allowed only with explicit
@@ -33,3 +33,28 @@ rate limits, durable idempotency, fleet authorization and security review. Autom
 credential rotation is intentionally deferred; the typed route and mock rotation replay behavior
 are implemented. The Phase 2 agent stops central sync on expired credentials without discarding
 identity or running jobs. Local collection remains active within the bounded queue.
+
+## Phase 4 local console
+
+The service keeps its database/credentials private and exposes an explicit projection over
+ACL-restricted local transport. A separate IPC key authenticates/encrypts frames. Maintenance
+requires a distinct high-entropy technician secret and one-use, expiring action scopes.
+See [Phase 4 security boundaries and provisioning](../development/phase4.md). This is not yet
+individual technician identity, a production credential installer or tamper-evident auditing.
+
+## Phase 5 simulation trust
+
+A separate Ed25519 development key signs device-bound simulation jobs. The agent accepts only
+a closed fixture catalog and rechecks trust before resume; it never fetches artifact URLs.
+Admission, state and report IDs are durable, with terminal replay protection and lease checks
+at each safe step. Cancellation uses the existing scoped technician authorization.
+See [simulation boundaries](../development/phase5.md); this is not production release trust.
+
+## Phase 6 recovery isolation
+
+Agent-update simulation signatures bind the update kind and enrolled device. The helper receives
+only simulation configuration, keeps an independent journal and process lock, and cannot read
+credentials through its journal/API. It has no real download or binary-switch capability.
+After switch intent, recovery can restore the journal's known-good reference despite expired lease
+or revoked trust. OS accounts remain trusted; this is not a privilege-separation sandbox.
+Native service-account ACLs, protected helper distribution and boot recovery remain future work.

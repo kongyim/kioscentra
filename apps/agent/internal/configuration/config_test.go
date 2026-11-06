@@ -18,3 +18,37 @@ func TestTransportBoundary(t *testing.T) {
 		})
 	}
 }
+
+func TestSimulationRequiresExplicitDevelopmentTrust(t *testing.T) {
+	c := Config{ServerURL: "https://central.example", StateDir: t.TempDir(), Interval: time.Second, RequestTimeout: time.Second, MaxQueue: 1, SimulatedDeployments: true}
+	if c.Validate() == nil {
+		t.Fatal("enabled without development trust")
+	}
+	c.Development = true
+	if c.Validate() == nil {
+		t.Fatal("enabled without trust key")
+	}
+	c.SimulationPublicKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+	if e := c.Validate(); e != nil {
+		t.Fatal(e)
+	}
+	c.Development = false
+	if c.Validate() == nil {
+		t.Fatal("enabled in production")
+	}
+}
+
+func TestUpdateSimulationRequiresDevelopmentAndTrust(t *testing.T) {
+	c := Config{ServerURL: "https://central.example", StateDir: t.TempDir(), Interval: time.Second, RequestTimeout: time.Second, MaxQueue: 1, SimulatedUpdates: true}
+	if c.Validate() == nil {
+		t.Fatal("update enabled without development trust")
+	}
+	c.Development = true
+	if c.Validate() == nil {
+		t.Fatal("update enabled without trust key")
+	}
+	c.SimulationPublicKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+	if e := c.Validate(); e != nil {
+		t.Fatal(e)
+	}
+}

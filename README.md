@@ -1,16 +1,17 @@
 # Kiosentra
 
-Windows-first kiosk agent foundation. **Phases 1 and 2 only**: a runnable Go agent,
+Windows-first kiosk agent foundation. **Phases 1–6 implemented (deployment and update phases are simulation-only)**: a runnable Go agent,
 versioned API contract, durable local state, and a development central-server mock.
-The production server, admin dashboard, Wails UI, software installation and self-update
-are **not implemented**.
+A desktop-tag build adds the local Wails console. The production server, admin dashboard,
+software installation and self-update are **not implemented**.
 
 ## Layout
 
 - `apps/agent`: single executable, console and Windows SCM modes; internal service core.
 - `packages/contracts`: OpenAPI 3.1 and shared Go wire types, without backend dependencies.
 - `tools/mock-server`: isolated, in-memory development server and integration-test handler.
-- `apps/server`, `apps/admin`, `packages/ui`, agent frontend: future-phase boundaries.
+- `apps/agent/frontend`: embedded React/TypeScript/MUI local console (desktop build).
+- `apps/server`, `apps/admin`, `packages/ui`: future-phase boundaries.
 - `docs`: architecture, operating instructions, API semantics, security and future designs.
 
 A third small Go module for contracts avoids making the mock depend on agent internals.
@@ -77,8 +78,8 @@ go run ./apps/agent/cmd/kiosentra-agent --mode=console
 ```
 
 You should see `agent started` followed by `device enrolled`. The agent sends real metrics
-and heartbeats every 30 seconds. Successful reports are not printed, and there is no graphical
-UI yet; inspect the data using terminal 3.
+and heartbeats every 30 seconds. Successful reports are not printed; inspect the data using
+terminal 3, or build and provision the [local desktop console](docs/development/phase4.md).
 
 ### Terminal 3 — inspect received reports
 
@@ -123,16 +124,27 @@ and [Windows Service setup](docs/deployment/windows-service.md).
 - Console lifecycle, signal cancellation, JSON structured logs, Windows SCM adapter.
 - Strict configuration validation; verified HTTPS, explicit loopback-only development HTTP.
 - Device-generated Ed25519 identity and enrollment, protected credentials, origin binding.
-- Real basic CPU/memory/disk/uptime readings using gopsutil; heartbeat and metrics reporting.
+- Timed CPU/memory/disk/uptime collection with per-source local diagnostics.
+- Kiosk process/RSS/CPU observation and true/false/unknown heartbeat state.
+- Hardware/network inventory, Windows 32/64-bit uninstall and Java/.NET discovery.
+- Read-only shell/startup comparison and custom executable version metadata.
 - SQLite WAL state, encrypted identity/credentials, bounded durable telemetry queue, process lock.
 - Sequential sync with capped exponential backoff and jitter; persistent request IDs for replay.
-- Read-only policy caching; job polling with pagination, durable rejection and duplicate protection.
+- Read-only policy caching; job polling with pagination, durable decisions and duplicate protection.
+- Opt-in signed deployment simulations with durable history, lease renewal, recovery and cancellation.
+- Independent simulated-update helper with a separate journal, bounded health checks and offline rollback.
 - Typed clients and mock routes for inventory, credential rotation, leases, status and updates.
 - Authenticated development job creation and redacted report inspection.
+- Optional desktop build with nine service-backed pages, dark/light themes, tray and global hotkey.
+- ACL-restricted local IPC, encrypted frames and scoped, single-use maintenance authorization.
 
-The remaining contract routes are available for protocol testing; the agent does not yet
-collect software inventory, automatically rotate credentials, evaluate policy compliance,
-execute jobs or install releases. It rejects **every** polled job in this milestone.
+The agent automatically reports inventory and read-only policy observations. It does not yet
+automatically rotate credentials or install releases. By default every job is rejected;
+explicit development opt-in permits only signed simulations. See the [Phase 5 guide](docs/development/phase5.md).
 
 See [known limitations](docs/development/limitations.md) and [validation record](docs/development/validation.md).
-Next: **Phase 3 — monitoring interfaces, Windows inventory and read-only configuration detection**.
+See [Phase 3 behavior and Windows validation](docs/development/phase3.md).
+The [Phase 4 desktop guide](docs/development/phase4.md) covers building the UI, IPC credentials,
+login startup and scoped maintenance authorization. Native Windows acceptance is still required.
+See the [Phase 6 update recovery guide](docs/development/phase6.md) for the independent helper.
+Next: **Phase 7 — production hardening**. Real installation and binary replacement remain unavailable.

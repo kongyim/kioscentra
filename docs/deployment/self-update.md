@@ -1,8 +1,11 @@
-# Self-update and recovery design — Phase 6, not implemented
+# Self-update and recovery — simulation implemented; native updates deferred
 
-The contract includes release metadata, agent-update jobs and update status reporting. The mock
-can return untrusted simulation metadata. No binary switching, download verification, updater state
-machine, recovery process or production-ready self-update is implemented in this milestone.
+Phase 6 implements an opt-in signed simulation with a detached updater process, independent
+SQLite journal, simulated target switching, bounded health fixture and offline rollback.
+See [implemented behavior and setup](../development/phase6.md). No real binary switching,
+service control, artifact downloading or production-ready self-update is implemented.
+
+The following remains the design required before enabling **real** updates:
 
 Plan an independent recovery executor, initially a controlled second instance of the distribution
 binary in an updater mode. Persist an update journal before launching it. Keep binaries in versioned
@@ -12,9 +15,9 @@ It must survive service termination, perform bounded health checks, restore the 
 on failure and restart/report recovery independently of the new agent.
 
 The release manifest binds version, package type, HTTPS artifact URL, SHA-256, size and trusted key
-ID. Before Phase 5/6, freeze a canonical UTF-8 signing representation and implement Ed25519 verification
-against provisioned trust roots; the current `signature` field is base64 of a detached signature and
-is only a wire contract. Do not treat the mock's zero-filled signature or `mock-untrusted` key as valid.
+ID. Phases 5/6 define a canonical device-bound signing representation for development simulations.
+Freeze and review a production release format and trust-root policy before real artifact execution.
+The `signature` field is base64 of a detached signature. Do not treat the mock's zero-filled signature or `mock-untrusted` key as valid.
 Rollout targeting and release authorization belong to the future central server.
 
 Recover the updater itself by retaining a separately installed known-good helper/supervisor and an

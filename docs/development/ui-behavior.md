@@ -1,15 +1,19 @@
-# Local UI specification — Phase 4, not implemented
+# Local UI behavior — Phase 4
 
-Wails v3 will embed a React/TypeScript/Vite/MUI console in `--mode=ui`; no Electron or distributed
-Node runtime. Start at user login, initially hidden. Tray activation shows/focuses the window;
-closing hides it. Default global shortcut: Ctrl+Alt+Shift+F12, configurable. Register it independently
-of Explorer/tray availability and surface conflicts or unsupported sessions without stopping service.
-Dark theme is default; offer light theme. Reconnect authenticated local IPC after service restarts.
+The desktop-tag build embeds a React/TypeScript/Vite/MUI console in Wails v3. It runs in a
+separate interactive process, starts hidden, supports tray activation and a configurable
+Ctrl+Alt+Shift+F12 global shortcut, and hides on close. Dark/light theme preference is local.
+The service continues when the UI exits. Service reconnects are automatic and stale data is marked.
 
-Dashboard, device information, applications, deployments, configuration, logs, maintenance and about
-pages must consume service-owned data. Clearly mark unavailable fields; do not fabricate installation
-or uptime state. Opening the window grants no maintenance privileges. Technician authentication must
-produce scoped, expiring authorization for an explicit allowlist of service-side actions. No direct
-privileged React operations. Authorized shutdown is separate from closing the window. The service
-survives UI crashes. ACL-restricted Windows named pipes are the planned IPC transport, not an exposed
-unauthenticated local HTTP API. Hotkey, tray, IPC and maintenance authentication remain unimplemented.
+All nine pages consume service-owned data. Viewing grants no maintenance privileges.
+Technician authentication issues an expiring, single-use authorization scoped to inventory
+refresh, service stop or (Phase 5) cancellation of the active simulation. Shutdown has a separate confirmation; configuration, installation
+and arbitrary command execution are not exposed. Missing data remains explicitly unavailable.
+
+See [build, provisioning, IPC boundaries and native acceptance](phase4.md).
+
+Phase 5 adds simulation transition history and explicit simulation labels to Deployments.
+See [Phase 5](phase5.md) for opt-in configuration and failure scenarios.
+
+Phase 6 adds an Updates page with simulated version references, recovery history and pending
+central reports. The real running agent version is unchanged.

@@ -34,3 +34,15 @@ Limits: 1 MiB request bodies, 1,000 devices, 1,000 retained reports and jobs per
 idempotency receipts per device. Reports evict oldest entries; jobs and receipts fail closed
 at capacity. Restart the development server to reset state. These are development guardrails,
 not production capacity or retention guarantees. All error bodies follow the v1 error shape.
+
+## Signed development simulations (Phase 5)
+
+With `KIOSENTRA_MOCK_SIMULATION_PRIVATE_KEY` configured, deployment jobs receive
+device-bound signatures. `/dev/jobs` accepts optional `scenario`, defaulting to `success`.
+See [Phase 5](../development/phase5.md) for fixtures and agent trust configuration.
+The agent still rejects all jobs unless simulation is explicitly enabled. Status transitions
+follow the simulation graph; existing idempotency receipts are checked before lease expiry.
+
+Phase 6 also signs `agent_update` simulation jobs with the same configured development key.
+Its separate fixture catalog and `/agent/update-status` reporting are described in
+[Phase 6](../development/phase6.md). No real release or installer endpoint has been enabled.

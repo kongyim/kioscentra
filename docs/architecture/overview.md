@@ -12,22 +12,28 @@
 ## Boundaries
 
 The executable selects console or SCM startup and invokes the same `app.Run` lifecycle.
-`configuration` owns local bootstrap settings. `monitoring.Basic` supplies Phase 2 metrics.
+`configuration` owns local bootstrap settings. `monitoring.Basic` supplies timed metrics with local per-source diagnostics.
+`watchdog.Processes` observes kiosk PIDs; `inventory.System` and the read-only Windows adapter
+collect inventory and compare supported policy fields. See [Phase 3](../development/phase3.md).
 `app.Agent` orchestrates one serial cycle; there are no unbounded background worker pools.
 `api.Client` owns timeout-bound HTTPS calls. `storage.Store` owns SQLite transactions,
-protected blobs, a bounded outbox and durable job decisions. The contracts module contains
+protected blobs, a bounded outbox and durable job decisions and simulation transitions. The contracts module contains
 only wire models, validators and the OpenAPI document. The mock imports contracts, not agent code.
 The agent imports the mock only in integration tests.
 
 Future package directories have README boundaries rather than nonfunctional interfaces.
-Wails v3 and React dependencies are intentionally absent until Phase 4. No Node runtime
-is required to build or distribute the implemented agent.
+Wails v3 and React are included behind the `desktop` build tag. Node builds the embedded frontend;
+no Node runtime is distributed. Headless agent builds do not require desktop assets.
+Phase 4 IPC exposes a safe service snapshot and scoped maintenance actions; see
+[desktop architecture and provisioning](../development/phase4.md).
 
 ## Data flow
 
-Each interval: collect with a deadline → append metrics and heartbeat to the outbox →
+Each interval: collect with deadlines → append metrics, heartbeat, policy observations and
+due inventory to the outbox →
 check communication backoff → enroll if needed → drain at most 100 events → retrieve and
-cache desired policy → poll jobs → persist rejection decisions → acknowledge them.
+cache desired policy → poll jobs → persist admission/rejection decisions → acknowledge them →
+advance at most one authorized simulation checkpoint.
 A lost HTTP response causes the same durable request ID to be retried. The mock stores the
 request hash and response; altered replays get 409. Enrollment retries reuse the persisted
 public key. Successful acknowledgements are recorded so jobs cannot be re-executed after restart.
@@ -42,10 +48,11 @@ SQLite uses WAL, FULL synchronous writes, a five-second busy timeout and a singl
 One OS file lock allows one service core per state directory. Durable tables are `kv`,
 `outbox` and `jobs`. Protected identity and credentials are in `kv`; desired policy is
 stored separately as ordinary JSON. Bootstrap settings are environment-backed with a durable non-secret diagnostic snapshot; the enrolled
-server origin is durable and must match on restart. Schema version 1 is recorded with
-`user_version`; newer schema versions are rejected, and explicit migrations must be added before changing this schema.
+server origin is durable and must match on restart. Schema version 3 is recorded with
+`user_version`; newer schema versions are rejected. An additive transaction migrates schema 1/2 to 3.
 
 Telemetry is bounded to 1,000 events by default. Job IDs are retained up to 10,000; reaching
 capacity fails closed rather than evicting replay protection. This is a milestone limit,
-not a production retention policy. Recovery/update metadata tables and deployment history
-will be introduced with the corresponding engines in Phases 5 and 6.
+not a production retention policy. Deployment checkpoints and a dedicated status-history queue were added in Phase 5.
+Phase 6 adds service handoff rows and an independent helper journal. See
+[deployment simulations](../development/phase5.md) and [update recovery](../development/phase6.md).
