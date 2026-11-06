@@ -15,6 +15,7 @@ export type Snapshot = {
   commit: string;
   hostname: string;
   maintenanceEnabled: boolean;
+  namedTechnicians?: boolean;
   uiWarning?: string;
   logs: { time: string; level: string; message: string }[];
   data: {

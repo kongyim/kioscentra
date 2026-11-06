@@ -39,8 +39,9 @@ identity or running jobs. Local collection remains active within the bounded que
 The service keeps its database/credentials private and exposes an explicit projection over
 ACL-restricted local transport. A separate IPC key authenticates/encrypts frames. Maintenance
 requires a distinct high-entropy technician secret and one-use, expiring action scopes.
-See [Phase 4 security boundaries and provisioning](../development/phase4.md). This is not yet
-individual technician identity, a production credential installer or tamper-evident auditing.
+Phase 7 adds named local technician profiles with allowed scopes and actor-attributed audit messages;
+shared-secret authorization is now development-only. See [Phase 7 provisioning and trust boundaries](../development/phase7.md).
+This is not central SSO or tamper-evident auditing.
 
 ## Phase 5 simulation trust
 
@@ -57,4 +58,19 @@ only simulation configuration, keeps an independent journal and process lock, an
 credentials through its journal/API. It has no real download or binary-switch capability.
 After switch intent, recovery can restore the journal's known-good reference despite expired lease
 or revoked trust. OS accounts remain trusted; this is not a privilege-separation sandbox.
-Native service-account ACLs, protected helper distribution and boot recovery remain future work.
+Phase 7 tools configure service-account ACLs, a separate protected helper and an opt-in simulation
+startup task. Native Windows ACL/task/reboot behavior has not been accepted in this environment.
+
+## Phase 7 provisioning review
+
+Explicit configuration files are authoritative over inherited application environment values and
+bounded to 64 KiB. The Windows provisioner separates service secrets from reader settings, uses a
+virtual service account and gives the service write access to state but not executors/configuration.
+Enrollment confirmation precedes bootstrap-token removal. Administrative configuration and the OS
+administrator remain trusted; plaintext bootstrap/IPC material relies on those ACLs.
+
+Package tools use SHA-256 catalogs and pinned Authenticode publishers. Unsigned fixtures require
+explicit development opt-in. Installer scripts themselves must come from a trusted reviewed source
+or have their signatures verified before execution. Catalog checks inside an already untrusted script
+cannot establish the script's own trust. Real release signing and independent security review remain
+acceptance gates. See [Phase 7](../development/phase7.md) for local test evidence and open native checks.

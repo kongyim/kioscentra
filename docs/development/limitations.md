@@ -4,7 +4,8 @@
 - Native Windows SCM/DPAPI behavior requires the documented Windows validation. Host-side tests and
   cross-builds cannot establish Session 0, ACL, account-change, reboot or recovery correctness.
 - Desktop UI and authenticated local IPC require provisioning; Windows tray/hotkey/login/ACL
-  behavior still needs native acceptance. No automatic process restart or remediation.
+  behavior still needs native acceptance. Phase 7 scripts configure SCM crash recovery; native
+  execution is unverified. No automatic kiosk-process restart or policy remediation.
 - No installation, artifact download/signature verification, rollback or self-update execution.
 - Monitoring, inventory and read-only Windows policy observation are implemented; see
   [Phase 3 scope](phase3.md) for machine-scope discovery, partial-data and deadline limitations.
@@ -24,15 +25,19 @@
   or operator pruning tool is present. Mock receipts/jobs also have explicit finite limits.
 - Retry cadence is bounded by the configured collection interval; no Retry-After scheduling yet.
 - Mock job statuses enforce the simulation transition graph. Real installer execution is unavailable.
-- Service logs are bounded local files; centralized/tamper-evident audit, robust installer provisioning,
-  code signing and security review are future production-hardening work.
+- Service logs are bounded local files. Phase 7 adds named technician audit attribution and
+  installer/signing tools; centralized/tamper-evident audit, actual production signing and independent
+  security review remain open.
 
 Phase 3 is implemented with automated host tests and Windows cross-compilation. Native Windows
 runtime validation remains required. macOS production operations remain unsupported.
-Phase 4 adds the [local desktop console](phase4.md); individual technician identity and production
-credential provisioning remain future work. [Phase 5](phase5.md) implements signed development simulations. [Phase 6](phase6.md) adds an independent simulated recovery helper. Next is production hardening
-(Phase 7); real updater effects and native Windows acceptance remain outstanding.
+Phase 4 adds the [local desktop console](phase4.md). [Phase 5](phase5.md) implements signed development
+simulations and [Phase 6](phase6.md) adds an independent simulated recovery helper. [Phase 7](phase7.md)
+adds protected provisioning, named local technician profiles and Windows installation/recovery tools.
+Central technician identity, real updater effects, production signing and native Windows acceptance
+remain outstanding.
 
-The update helper can survive service exit and recover offline, but has no installed OS boot trigger
-or separate fallback executor. Reboot recovery requires restarting the service/helper. A failed
+The update helper can survive service exit and recover offline. Phase 7 can install a separate
+recovery copy and startup task for simulations; without provisioning, reboot recovery requires
+restarting the service/helper. Actual Windows reboot acceptance is pending. A failed
 simulated rollback blocks new update admission; central reporting waits for the service to return.

@@ -27,7 +27,19 @@ jobs:
           go build -o bin/mock-server ./tools/mock-server/cmd/mock-server
       - name: Independent update recovery smoke test
         if: runner.os != 'Windows'
-        run: python3 scripts/phase6-smoke.py
+        run: python3 scripts/phase6-smoke.py --protected-settings
+      - name: PowerShell parser validation
+        shell: pwsh
+        run: ./tools/windows/Test-Scripts.ps1
+      - name: Windows development packaging and provisioning acceptance
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          go build -o bin/kiosentra-agent.exe ./apps/agent/cmd/kiosentra-agent
+          go build -o bin/mock-server.exe ./tools/mock-server/cmd/mock-server
+          go build -o bin/simulation-keygen.exe ./tools/mock-server/cmd/simulation-keygen
+          ./tools/windows/Build-Package.ps1 -Executable "$pwd/bin/kiosentra-agent.exe" -Version ci-test -OutputDirectory "$env:RUNNER_TEMP/kiosentra-package" -Development
+          ./tools/windows/Test-Provisioning.ps1 -PackageDirectory "$env:RUNNER_TEMP/kiosentra-package" -MockExecutable "$pwd/bin/mock-server.exe" -KeygenExecutable "$pwd/bin/simulation-keygen.exe" -OutputDirectory "$env:RUNNER_TEMP/kiosentra-acceptance"
       - name: Windows cross-build
         if: runner.os == 'Linux'
         env:

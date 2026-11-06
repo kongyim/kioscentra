@@ -130,8 +130,10 @@ restart the service or explicitly run the helper with the same state directory a
 ./bin/kiosentra-agent --mode=updater
 ```
 
-There is **no OS-persisted automatic recovery trigger or independently installed fallback helper**
-yet. If both processes stop, neither restarts itself. That native provisioning is Phase 7 work.
+An unprovisioned Phase 6 build has no OS-persisted automatic recovery trigger or independently
+installed fallback helper. [Phase 7 tooling](phase7.md) can provision a separate protected recovery
+copy and a Windows startup task for simulations; Windows task/reboot acceptance is still pending.
+Without that provisioning, if both processes stop, neither restarts itself.
 The helper executable itself is not updated in this phase. A real update system must place a
 known-good recovery executor outside candidate directories and define its own protected handoff.
 

@@ -124,6 +124,11 @@ func (a *Agent) recoverUpdates(ctx context.Context, prepare bool) error {
 		launch := a.LaunchUpdater
 		if launch == nil {
 			launch = updater.Launch
+			if a.Config.RecoveryExecutable != "" {
+				launch = func(dir string, key ed25519.PublicKey) error {
+					return updater.LaunchExecutable(a.Config.RecoveryExecutable, dir, key)
+				}
+			}
 		}
 		if scenario == "helper_launch_failure" {
 			err = errors.New("simulated helper launch failure")

@@ -1,6 +1,8 @@
 # Windows Service setup and validation
 
-The SCM adapter is implemented; installer packaging and unattended provisioning are Phase 7.
+The SCM adapter is implemented. [Phase 7](../development/phase7.md) provides package/signing,
+protected provisioning, installation and acceptance scripts; native Windows acceptance is still pending.
+The manual commands below are development instructions, separate from the Phase 7 virtual-account installer.
 Build from the root in PowerShell with Go installed:
 
 ```powershell

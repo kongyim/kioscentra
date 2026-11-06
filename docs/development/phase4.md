@@ -124,8 +124,9 @@ connections before storage closes. No unauthenticated HTTP endpoint is introduce
 
 All holders of the IPC key and OS access are trusted local viewers. Rotating it requires
 restarting the service and UI. Operating-system administrators remain trusted. Production
-credential provisioning, individual technician identity, installer packaging, code signing
-and native security review remain Phase 7 work.
+credential provisioning, named local technician identity and installer/signing tooling are now
+provided by [Phase 7](phase7.md). Production signing, native acceptance and independent security review
+remain open. Shared-secret maintenance is now development-only; production mode requires named profiles.
 
 ## Validation and remaining native checks
 

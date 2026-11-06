@@ -717,6 +717,7 @@ export default function App() {
               <Maintenance
                 connected={connected}
                 enabled={snapshot?.maintenanceEnabled ?? false}
+                namedTechnicians={snapshot?.namedTechnicians ?? false}
               />
             )}
             {page === "About" && (
@@ -751,11 +752,14 @@ export default function App() {
 function Maintenance({
   connected,
   enabled,
+  namedTechnicians,
 }: {
   connected: boolean;
   enabled: boolean;
+  namedTechnicians: boolean;
 }) {
   const [secret, setSecret] = useState(""),
+    [technician, setTechnician] = useState(""),
     [scope, setScope] = useState("refresh_inventory"),
     [grant, setGrant] = useState<Grant | null>(null),
     [busy, setBusy] = useState(false),
@@ -787,7 +791,9 @@ function Maintenance({
     setError("");
     setNotice("");
     try {
-      const result = await api.authorize(secret, scope);
+      const result = namedTechnicians
+        ? await api.authorize(secret, scope, technician)
+        : await api.authorize(secret, scope);
       if (epoch === authorizationEpoch.current) setGrant(result);
     } catch (e) {
       setGrant(null);
@@ -845,6 +851,19 @@ function Maintenance({
               </MenuItem>
             </Select>
           </FormControl>
+          {namedTechnicians && (
+            <TextField
+              label="Technician ID"
+              value={technician}
+              autoComplete="off"
+              disabled={!connected || !enabled || busy}
+              onChange={(e) => {
+                authorizationEpoch.current++;
+                setTechnician(e.target.value);
+                setGrant(null);
+              }}
+            />
+          )}
           <TextField
             type="password"
             label="Technician secret"
@@ -856,7 +875,13 @@ function Maintenance({
           <Button
             variant="outlined"
             onClick={() => void authorize()}
-            disabled={!connected || !enabled || busy || !secret}
+            disabled={
+              !connected ||
+              !enabled ||
+              busy ||
+              !secret ||
+              (namedTechnicians && !technician)
+            }
           >
             {busy ? (
               <CircularProgress size={20} />

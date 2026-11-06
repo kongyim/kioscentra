@@ -26,9 +26,9 @@ func (b *Bridge) Snapshot() (map[string]any, error) {
 	}
 	return result, nil
 }
-func (b *Bridge) Authorize(secret, scope string) (ipc.Grant, error) {
+func (b *Bridge) Authorize(secret, scope, technician string) (ipc.Grant, error) {
 	var g ipc.Grant
-	e := b.client.Call(context.Background(), ipc.Request{Method: "authorize", Secret: secret, Scope: scope}, &g)
+	e := b.client.Call(context.Background(), ipc.Request{Method: "authorize", Secret: secret, Scope: scope, Technician: technician}, &g)
 	return g, e
 }
 func (b *Bridge) Action(token, scope string) error {

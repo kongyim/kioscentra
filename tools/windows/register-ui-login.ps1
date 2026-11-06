@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Executable,
+    [string]$ConfigFile,
     [switch]$Remove
 )
 $ErrorActionPreference = 'Stop'
@@ -18,6 +19,12 @@ if (-not (Test-Path -LiteralPath $resolved -PathType Leaf) -or $resolved.Contain
 if ([IO.Path]::GetExtension($resolved) -ne '.exe' -or $resolved.StartsWith('\\')) {
     throw 'Expected a local .exe file.'
 }
+$arguments = ' --mode=ui'
+if ($ConfigFile) {
+    $config = (Resolve-Path -LiteralPath $ConfigFile).Path
+    if ($config.Contains('"') -or $config.StartsWith('\\')) { throw 'Expected a local configuration path without quotes.' }
+    $arguments += ' --config="' + $config + '"'
+}
 New-Item -Path $runKey -Force | Out-Null
-Set-ItemProperty -Path $runKey -Name 'KiosentraConsole' -Value ('"' + $resolved + '" --mode=ui')
-Write-Output 'Kiosentra console will start hidden at this user’s next login. The service is unchanged.'
+Set-ItemProperty -Path $runKey -Name 'KiosentraConsole' -Value ('"' + $resolved + '"' + $arguments)
+Write-Output 'Kiosentra console will start hidden at the next login for this user. The service is unchanged.'

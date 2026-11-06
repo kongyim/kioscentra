@@ -147,4 +147,7 @@ See [Phase 3 behavior and Windows validation](docs/development/phase3.md).
 The [Phase 4 desktop guide](docs/development/phase4.md) covers building the UI, IPC credentials,
 login startup and scoped maintenance authorization. Native Windows acceptance is still required.
 See the [Phase 6 update recovery guide](docs/development/phase6.md) for the independent helper.
-Next: **Phase 7 — production hardening**. Real installation and binary replacement remain unavailable.
+[Phase 7 hardening tools](docs/development/phase7.md) now cover protected configuration, named
+technician authorization, Windows package/signing and service provisioning, separate simulation
+recovery and acceptance scripts. Local validation is complete; production signing and native Windows
+acceptance remain open. Real software deployment and binary replacement remain unavailable.

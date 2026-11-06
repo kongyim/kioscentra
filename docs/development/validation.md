@@ -143,3 +143,37 @@ Native Windows execution, interactive GUI acceptance, real binary replacement, S
 boot-triggered recovery are not established. macOS desktop linking still emits deployment-target
 warnings, so older macOS compatibility is not established. Phase 6 acceptance is limited to the
 [documented simulation scope](phase6.md); native production effects remain later work.
+
+## Phase 7 validation
+
+Validated on 6 November 2026 on macOS arm64, Go 1.27.3 and Node 26.12.0:
+
+- Full Go unit/integration suite, race-enabled suite and vet across all three modules via
+  `sh scripts/check.sh`; native headless agent/mock builds and Windows amd64 cross-build.
+- New Go coverage for isolated configuration files, malformed/oversized/missing settings, named
+  technician scope enforcement, single-use grants, actor attribution without token disclosure,
+  invalid technician profiles and rejection of shared maintenance secrets outside development.
+- Ten frontend tests, including required technician ID, identity-bound authorization requests,
+  clearing grants when the selected identity changes, and no storage of technician credentials.
+  TypeScript checking and Vite production build also passed using the explicit Node 26 executable.
+- `python3 scripts/phase6-smoke.py --protected-settings`: real binaries use isolated service/reader
+  config files despite conflicting environment settings, expose a redacted enrolled status over IPC,
+  launch a separate recovery executable, recover while service/central are unavailable, then deliver
+  all five update reports after service restart. All state and keys are temporary fixtures.
+- Desktop-tagged UI/frontend vet, native macOS desktop build and Windows amd64 desktop cross-build.
+- All Windows scripts parsed successfully with the official PowerShell 7.6.9 macOS arm64 distribution,
+  downloaded under `/tmp/kiosentra-powershell` and verified against its release asset SHA-256
+  `a1c7e98ac403da4be5ba75c1c5855af272de7787a91d478c4267466fe58fc1af`.
+  Parsing found and fixed a pre-existing smart-apostrophe string error in `register-ui-login.ps1`.
+
+As in Phase 6, Go socket/process tests and the real-binary smoke test needed the sandbox restrictions
+lifted; no tests were disabled. Go caches used `/tmp/kiosentra-phase6-cache`. macOS desktop linker
+deployment-target warnings remain, so older macOS compatibility is not established.
+
+**Not run:** Windows catalog generation/Authenticode signing, actual installer/uninstaller execution,
+native ACL/service-account DPAPI/SCM recovery/task acceptance, reboot tests, interactive UI tests or remote
+CI. `Test-Provisioning.ps1` and Windows CI now encode development packaging, tamper rejection,
+provisioning, bootstrap cleanup, restart/identity persistence, crash recovery and task dispatch checks.
+Their presence is not evidence of a Windows pass. Real signing requires a certificate; independent
+security review remains open. The user-approved Phase 7 delivery scope is tools and local validation;
+see [Phase 7 acceptance gates](phase7.md#repeatable-verification-and-remaining-gates).

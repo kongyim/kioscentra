@@ -12,8 +12,9 @@ import (
 	"errors"
 	"io"
 	"net"
-	"os"
 	"time"
+
+	"kiosentra/apps/agent/internal/configuration"
 )
 
 const MaxResponse = 4 << 20
@@ -25,11 +26,25 @@ type Options struct {
 	ReaderSID       string
 	Key             []byte
 	MaintenanceHash string
+	Technicians     map[string]Technician
 }
 
 func LoadOptions(dir string, development bool) (Options, error) {
-	o := Options{StateDir: dir, Development: development, ReaderSID: os.Getenv("KIOSENTRA_UI_SID"), MaintenanceHash: os.Getenv("KIOSENTRA_MAINTENANCE_SHA256")}
-	encoded := os.Getenv("KIOSENTRA_IPC_KEY")
+	get, err := configuration.Settings()
+	if err != nil {
+		return Options{}, err
+	}
+	o := Options{StateDir: dir, Development: development, ReaderSID: get("KIOSENTRA_UI_SID"), MaintenanceHash: get("KIOSENTRA_MAINTENANCE_SHA256")}
+	if path := get("KIOSENTRA_TECHNICIANS_FILE"); path != "" {
+		o.Technicians, err = LoadTechnicians(path)
+		if err != nil {
+			return o, err
+		}
+	}
+	if !development && o.MaintenanceHash != "" {
+		return o, errors.New("shared maintenance secret is development-only; provision named technicians")
+	}
+	encoded := get("KIOSENTRA_IPC_KEY")
 	if encoded == "" {
 		return o, nil
 	}
@@ -42,20 +57,22 @@ func LoadOptions(dir string, development bool) (Options, error) {
 }
 
 type Request struct {
-	Method   string    `json:"method"`
-	Secret   string    `json:"secret"`
-	Scope    string    `json:"scope"`
-	Token    string    `json:"token"`
-	IssuedAt time.Time `json:"issuedAt"`
+	Technician string    `json:"technician,omitempty"`
+	Method     string    `json:"method"`
+	Secret     string    `json:"secret"`
+	Scope      string    `json:"scope"`
+	Token      string    `json:"token"`
+	IssuedAt   time.Time `json:"issuedAt"`
 }
 type Response struct {
 	Data  json.RawMessage `json:"data"`
 	Error string          `json:"error"`
 }
 type Grant struct {
-	Token     string    `json:"token"`
-	Scope     string    `json:"scope"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	Technician string    `json:"technician,omitempty"`
+	Token      string    `json:"token"`
+	Scope      string    `json:"scope"`
+	ExpiresAt  time.Time `json:"expiresAt"`
 }
 
 func codec(key []byte) (cipher.AEAD, error) {

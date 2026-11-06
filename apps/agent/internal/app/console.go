@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"kiosentra/apps/agent/internal/updater"
 	"os"
 	"path/filepath"
 
 	"kiosentra/apps/agent/internal/ipc"
+	"kiosentra/apps/agent/internal/updater"
+	"kiosentra/packages/contracts"
 )
 
 func (a *Agent) startConsole(parent context.Context, logs *ipc.LogBuffer) (func(), error) {
@@ -23,6 +25,7 @@ func (a *Agent) startConsole(parent context.Context, logs *ipc.LogBuffer) (func(
 	if e != nil {
 		return nil, e
 	}
+	server.Technicians = options.Technicians
 	listener, e := ipc.Listen(options)
 	if e != nil {
 		return nil, e
@@ -53,7 +56,11 @@ func (a *Agent) startConsole(parent context.Context, logs *ipc.LogBuffer) (func(
 			data["updates"] = events
 			data["updateTarget"] = target
 		}
-		return map[string]any{"version": Version, "commit": Commit, "hostname": a.hostname, "data": data, "logs": logs.Snapshot(), "maintenanceEnabled": options.MaintenanceHash != ""}, nil
+		var credential contracts.Credential
+		if err := a.Store.Get(ctx, "credential", &credential, true); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		return map[string]any{"deviceId": credential.DeviceID, "credentialExpiresAt": credential.ExpiresAt, "namedTechnicians": len(options.Technicians) != 0, "version": Version, "commit": Commit, "hostname": a.hostname, "data": data, "logs": logs.Snapshot(), "maintenanceEnabled": server.MaintenanceEnabled()}, nil
 	}
 	server.Action = func(action string) error {
 		select {

@@ -19,12 +19,17 @@ type Config struct {
 	SimulatedDeployments                                 bool
 	SimulatedUpdates                                     bool
 	SimulationPublicKey                                  string
+	RecoveryExecutable                                   string
 	Interval, RequestTimeout                             time.Duration
 	MaxQueue                                             int
 }
 
 func Load() (Config, error) {
-	dir := os.Getenv("KIOSENTRA_STATE_DIR")
+	get, err := Settings()
+	if err != nil {
+		return Config{}, err
+	}
+	dir := get("KIOSENTRA_STATE_DIR")
 	if dir == "" {
 		if runtime.GOOS == "windows" {
 			base := os.Getenv("ProgramData")
@@ -40,33 +45,34 @@ func Load() (Config, error) {
 			dir = filepath.Join(base, "kiosentra")
 		}
 	}
-	c := Config{ServerURL: os.Getenv("KIOSENTRA_SERVER_URL"), StateDir: dir, EnrollmentToken: os.Getenv("KIOSENTRA_ENROLLMENT_TOKEN"), DevelopmentKey: os.Getenv("KIOSENTRA_DEVELOPMENT_KEY"), Interval: 30 * time.Second, RequestTimeout: 10 * time.Second, MaxQueue: 1000}
+	c := Config{ServerURL: get("KIOSENTRA_SERVER_URL"), StateDir: dir, EnrollmentToken: get("KIOSENTRA_ENROLLMENT_TOKEN"), DevelopmentKey: get("KIOSENTRA_DEVELOPMENT_KEY"), Interval: 30 * time.Second, RequestTimeout: 10 * time.Second, MaxQueue: 1000}
 	if c.ServerURL == "" {
 		c.ServerURL = "https://localhost:8443"
 	}
-	if v := os.Getenv("KIOSENTRA_DEVELOPMENT"); v != "" {
+	if v := get("KIOSENTRA_DEVELOPMENT"); v != "" {
 		b, e := strconv.ParseBool(v)
 		if e != nil {
 			return c, e
 		}
 		c.Development = b
 	}
-	if v := os.Getenv("KIOSENTRA_INTERVAL"); v != "" {
+	if v := get("KIOSENTRA_INTERVAL"); v != "" {
 		d, e := time.ParseDuration(v)
 		if e != nil {
 			return c, e
 		}
 		c.Interval = d
 	}
-	c.SimulationPublicKey = os.Getenv("KIOSENTRA_SIMULATION_PUBLIC_KEY")
-	if v := os.Getenv("KIOSENTRA_SIMULATED_DEPLOYMENTS"); v != "" {
+	c.RecoveryExecutable = get("KIOSENTRA_RECOVERY_EXECUTABLE")
+	c.SimulationPublicKey = get("KIOSENTRA_SIMULATION_PUBLIC_KEY")
+	if v := get("KIOSENTRA_SIMULATED_DEPLOYMENTS"); v != "" {
 		b, e := strconv.ParseBool(v)
 		if e != nil {
 			return c, e
 		}
 		c.SimulatedDeployments = b
 	}
-	if v := os.Getenv("KIOSENTRA_SIMULATED_UPDATES"); v != "" {
+	if v := get("KIOSENTRA_SIMULATED_UPDATES"); v != "" {
 		b, e := strconv.ParseBool(v)
 		if e != nil {
 			return c, e
@@ -76,6 +82,9 @@ func Load() (Config, error) {
 	return c, c.Validate()
 }
 func (c Config) Validate() error {
+	if c.RecoveryExecutable != "" && !filepath.IsAbs(c.RecoveryExecutable) {
+		return errors.New("recovery executable must be an absolute path")
+	}
 	if c.SimulatedDeployments || c.SimulatedUpdates {
 		key, e := base64.StdEncoding.DecodeString(c.SimulationPublicKey)
 		if !c.Development || e != nil || len(key) != ed25519.PublicKeySize {

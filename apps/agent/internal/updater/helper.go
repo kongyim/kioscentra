@@ -116,6 +116,18 @@ func Run(ctx context.Context, stateDir string, key ed25519.PublicKey) error {
 // Launch starts a detached, credential-free helper. It is deliberately not bound to
 // the service's context. A process lock fences concurrent/restarted helper instances.
 func Launch(stateDir string, key ed25519.PublicKey) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	return LaunchExecutable(executable, stateDir, key)
+}
+
+// A provisioned recovery copy lives outside candidate directories and is not writable by the agent.
+func LaunchExecutable(executable, stateDir string, key ed25519.PublicKey) error {
+	if !filepath.IsAbs(executable) {
+		return errors.New("recovery executable must be absolute")
+	}
 	lock := flock.New(filepath.Join(stateDir, "update-simulation", "helper.lock"))
 	ok, e := lock.TryLock()
 	if e != nil {
@@ -125,10 +137,6 @@ func Launch(stateDir string, key ed25519.PublicKey) error {
 		return nil
 	}
 	if e = lock.Unlock(); e != nil {
-		return e
-	}
-	executable, e := os.Executable()
-	if e != nil {
 		return e
 	}
 	cmd := exec.Command(executable, "--mode=updater")

@@ -278,3 +278,47 @@ it("shows independent update recovery and pending reports as simulations", async
   expect(screen.getByText(/Report pending/)).toBeTruthy();
   expect(screen.getByText(/target differs from known-good/)).toBeTruthy();
 });
+
+it("requires a technician ID and sends it with scoped authorization", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({
+    ...connectedSnapshot,
+    namedTechnicians: true,
+  });
+  vi.mocked(api.authorize).mockResolvedValue({
+    token: "named-grant",
+    scope: "refresh_inventory",
+    expiresAt: new Date(Date.now() + 120000).toISOString(),
+  });
+  render(<App />);
+  await screen.findByText("Service connected");
+  fireEvent.click(screen.getByText("Maintenance"));
+  fireEvent.change(screen.getByLabelText("Technician secret"), {
+    target: { value: "individual-token" },
+  });
+  const authorize = screen.getByRole("button", {
+    name: "Authorize selected action",
+  }) as HTMLButtonElement;
+  expect(authorize.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Technician ID"), {
+    target: { value: "alice" },
+  });
+  fireEvent.click(authorize);
+  await screen.findByText(/Authorized until/);
+  expect(api.authorize).toHaveBeenCalledWith(
+    "individual-token",
+    "refresh_inventory",
+    "alice",
+  );
+  fireEvent.change(screen.getByLabelText("Technician ID"), {
+    target: { value: "bob" },
+  });
+  expect(screen.queryByText(/Authorized until/)).toBeNull();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Refresh inventory",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(window.localStorage.length).toBe(0);
+});

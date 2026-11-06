@@ -6,6 +6,8 @@ Requires Go (development signing-key generator) and Python 3. Uses SIGSTOP on
 its own mock process to preserve enrollment while central is unresponsive.
 """
 
+import argparse
+import shutil
 import base64
 import json
 import os
@@ -44,6 +46,9 @@ def stop(process):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--protected-settings", action="store_true", help="also verify Phase 7 file provisioning, IPC status and separate recovery copy")
+    args = parser.parse_args()
     if os.name != "posix":
         raise SystemExit("This smoke test requires POSIX signals; it is not Windows acceptance.")
     keys = json.loads(subprocess.check_output(
@@ -82,9 +87,30 @@ def main():
                     "KIOSENTRA_SIMULATED_UPDATES": "true",
                     "KIOSENTRA_SIMULATION_PUBLIC_KEY": keys["publicKey"]}
 
+                command = [str(ROOT / "bin/kiosentra-agent"), "--mode=console"]
+                client_config = None
+                if args.protected_settings:
+                    recovery = Path(directory) / "recovery-agent"
+                    shutil.copy2(ROOT / "bin/kiosentra-agent", recovery)
+                    settings = {k: v for k, v in agent_env.items() if k.startswith("KIOSENTRA_")}
+                    settings["KIOSENTRA_IPC_KEY"] = base64.b64encode(os.urandom(32)).decode()
+                    settings["KIOSENTRA_RECOVERY_EXECUTABLE"] = str(recovery)
+                    technician_file = Path(directory) / "technicians.json"
+                    technician_file.write_text(json.dumps({"alice": {"sha256": "0" * 64, "scopes": ["refresh_inventory"]}}))
+                    technician_file.chmod(0o600)
+                    settings["KIOSENTRA_TECHNICIANS_FILE"] = str(technician_file)
+                    service_config = Path(directory) / "service.json"
+                    service_config.write_text(json.dumps(settings))
+                    service_config.chmod(0o600)
+                    client_config = Path(directory) / "client.json"
+                    client_config.write_text(json.dumps({k: settings[k] for k in ("KIOSENTRA_STATE_DIR", "KIOSENTRA_DEVELOPMENT", "KIOSENTRA_IPC_KEY")}))
+                    client_config.chmod(0o600)
+                    command += ["--config=" + str(service_config)]
+                    # The explicit file must ignore a conflicting inherited server and credentials.
+                    agent_env = {**env, "KIOSENTRA_SERVER_URL": "http://invalid.example", "KIOSENTRA_ENROLLMENT_TOKEN": "wrong"}
+
                 def start_agent():
-                    return subprocess.Popen([str(ROOT / "bin/kiosentra-agent"), "--mode=console"],
-                        env=agent_env, stdout=log, stderr=log)
+                    return subprocess.Popen(command, env=agent_env, stdout=log, stderr=log)
 
                 def enrolled():
                     try:
@@ -94,6 +120,11 @@ def main():
 
                 agent = start_agent()
                 device = wait_for(enrolled, "enrollment")[0]["deviceId"]
+                if client_config:
+                    status = json.loads(subprocess.check_output([str(ROOT / "bin/kiosentra-agent"), "--mode=status", "--config=" + str(client_config)], env=agent_env))
+                    assert status["deviceId"] == device and status["namedTechnicians"] and status["maintenanceEnabled"]
+                    encoded = json.dumps(status)
+                    assert settings["KIOSENTRA_IPC_KEY"] not in encoded and enrollment not in encoded
                 job = request("/dev/jobs", {"deviceId": device, "kind": "agent_update",
                     "targetVersion": "phase6-smoke", "leaseSeconds": 300, "scenario": "health_timeout"})
 
@@ -129,6 +160,8 @@ def main():
                 reports = [r for r in request("/dev/state")[0]["reports"] if r["path"] == "/agent/update-status"]
                 assert len(reports) == 5, len(reports)
                 print("PASS: real detached helper, offline rollback, known-good restoration, restart and five reports")
+                if client_config:
+                    print("PASS: isolated protected settings, named maintenance projection, redacted IPC status and separate recovery executable")
             finally:
                 if paused:
                     mock.send_signal(signal.SIGCONT)

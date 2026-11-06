@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"kiosentra/apps/agent/internal/app"
 	"kiosentra/apps/agent/internal/configuration"
+	"kiosentra/apps/agent/internal/ipc"
 	"kiosentra/apps/agent/internal/service"
 	"kiosentra/apps/agent/internal/ui"
 	"kiosentra/apps/agent/internal/updater"
@@ -27,9 +29,15 @@ func main() {
 	}
 }
 func run() error {
-	mode := flag.String("mode", "console", "console, service, ui, or updater (simulation only)")
+	mode := flag.String("mode", "console", "console, service, ui, status, validate-config, or updater (simulation only)")
 	version := flag.Bool("version", false, "print build information")
+	configFile := flag.String("config", "", "absolute path to a protected JSON settings file")
 	flag.Parse()
+	if *configFile != "" {
+		if err := os.Setenv("KIOSENTRA_CONFIG_FILE", *configFile); err != nil {
+			return err
+		}
+	}
 	if *version {
 		fmt.Printf("Kiosentra %s (%s), API v1\n", app.Version, app.Commit)
 		return nil
@@ -46,6 +54,28 @@ func run() error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return updater.Run(ctx, c.StateDir, key)
+	}
+	if *mode == "status" || *mode == "validate-config" {
+		c, err := configuration.Load()
+		if err != nil {
+			return err
+		}
+		o, err := ipc.LoadOptions(c.StateDir, c.Development)
+		if err != nil {
+			return err
+		}
+		if *mode == "validate-config" {
+			if _, err = ipc.NewServer(o.MaintenanceHash); err != nil {
+				return err
+			}
+			fmt.Println("Configuration valid")
+			return nil
+		}
+		var snapshot map[string]any
+		if err = (ipc.Client{Options: o}).Call(context.Background(), ipc.Request{Method: "snapshot"}, &snapshot); err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(snapshot)
 	}
 	if *mode == "ui" {
 		return ui.Run()

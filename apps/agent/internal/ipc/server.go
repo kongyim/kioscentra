@@ -18,15 +18,16 @@ type pendingAction struct {
 }
 
 type Server struct {
-	Snapshot  func(context.Context) (any, error)
-	Action    func(string) error
-	Audit     func(string)
-	mu        sync.Mutex
-	hash      []byte
-	nextLogin time.Time
-	grants    map[string]Grant
-	nonces    map[string]time.Time
-	now       func() time.Time
+	Snapshot    func(context.Context) (any, error)
+	Action      func(string) error
+	Audit       func(string)
+	Technicians map[string]Technician
+	mu          sync.Mutex
+	hash        []byte
+	nextLogin   time.Time
+	grants      map[string]Grant
+	nonces      map[string]time.Time
+	now         func() time.Time
 }
 
 func NewServer(hash string) (*Server, error) {
@@ -72,17 +73,33 @@ func (s *Server) dispatch(ctx context.Context, r Request) (any, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		now := s.now()
-		if len(s.hash) == 0 {
+		if !s.MaintenanceEnabled() {
 			return nil, errors.New("maintenance authentication is not provisioned")
 		}
 		if now.Before(s.nextLogin) {
 			return nil, errors.New("wait before another authentication attempt")
 		}
 		s.nextLogin = now.Add(5 * time.Second)
+		expected := s.hash
+		actor := "shared-development"
+		scopeAllowed := len(s.Technicians) == 0
+		if len(s.Technicians) != 0 {
+			entry, ok := s.Technicians[r.Technician]
+			expected, _ = hex.DecodeString(entry.SHA256)
+			actor = "unknown"
+			if ok {
+				actor = r.Technician
+			}
+			for _, scope := range entry.Scopes {
+				if scope == r.Scope {
+					scopeAllowed = true
+				}
+			}
+		}
 		hash := sha256.Sum256([]byte(r.Secret))
-		if subtle.ConstantTimeCompare(hash[:], s.hash) != 1 {
+		if subtle.ConstantTimeCompare(hash[:], expected) != 1 || !scopeAllowed {
 			if s.Audit != nil {
-				s.Audit("maintenance authentication failed")
+				s.Audit("maintenance authentication failed: actor=" + actor)
 			}
 			return nil, errors.New("authentication failed")
 		}
@@ -98,10 +115,10 @@ func (s *Server) dispatch(ctx context.Context, r Request) (any, error) {
 		if _, e := rand.Read(token); e != nil {
 			return nil, e
 		}
-		g := Grant{Token: base64.RawURLEncoding.EncodeToString(token), Scope: r.Scope, ExpiresAt: now.Add(2 * time.Minute)}
+		g := Grant{Technician: actor, Token: base64.RawURLEncoding.EncodeToString(token), Scope: r.Scope, ExpiresAt: now.Add(2 * time.Minute)}
 		s.grants[g.Token] = g
 		if s.Audit != nil {
-			s.Audit("maintenance authorization issued: " + r.Scope)
+			s.Audit("maintenance authorization issued: " + r.Scope + " actor=" + actor)
 		}
 		return g, nil
 	case "action":
@@ -116,7 +133,7 @@ func (s *Server) dispatch(ctx context.Context, r Request) (any, error) {
 			return nil, errors.New("authorization missing, expired, consumed or wrong scope")
 		}
 		if s.Audit != nil {
-			s.Audit("maintenance action requested: " + r.Scope)
+			s.Audit("maintenance action requested: " + r.Scope + " actor=" + g.Technician)
 		}
 		return pendingAction{Scope: r.Scope}, nil
 	default:
