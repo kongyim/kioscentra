@@ -177,3 +177,170 @@ provisioning, bootstrap cleanup, restart/identity persistence, crash recovery an
 Their presence is not evidence of a Windows pass. Real signing requires a certificate; independent
 security review remains open. The user-approved Phase 7 delivery scope is tools and local validation;
 see [Phase 7 acceptance gates](phase7.md#repeatable-verification-and-remaining-gates).
+
+## Persistent central server MVP validation
+
+Validated on 12 November 2026 on macOS arm64 with Go 1.27.3:
+
+- `sh scripts/check.sh`: unit/integration tests, race detection and vet across all four
+  modules; native Agent/mock/central builds and Windows amd64 Agent cross-build passed.
+- Central tests cover identity/history and receipt persistence, exact-byte replay conflicts,
+  concurrent retries, atomic rollback after an injected database write failure, authentication
+  isolation, expiry, malformed/oversized payloads, pagination, offline state, mismatched
+  credential key and unsupported schema rejection.
+- `TestPersistentCentralWithAgentRestartAndLostResponse` uses the existing Agent against
+  the persistent server: a committed metrics response is lost, both stores reopen, the Agent
+  has no bootstrap token, and its queue drains without duplication. A further offline Agent
+  restart retains its identity and queued reports.
+- After correcting Windows drive-letter URI construction, central race tests and vet passed
+  again; native and Windows amd64 central binaries built successfully. URI regression tests
+  cover drive letters and paths containing spaces, query, fragment and percent characters.
+- `python3 scripts/central-smoke.py`: actual Agent and server processes enroll and report,
+  stop/restart using the same databases, resume without an Agent bootstrap token, and retain
+  the same device ID and pre-restart history. Temporary processes and data are cleaned up.
+
+The full suite and real-binary smoke needed permission to bind local test sockets. No tests
+were disabled. CI now includes the central module and runs the binary smoke on macOS/Linux;
+remote CI and native Windows execution were not run here. No frontend changes were made.
+This validates the [central MVP scope](../../apps/server/README.md), not production readiness:
+24-hour device credentials still lack automatic rotation, and job dispatch, admin UI,
+retention, rate limiting, SSO/RBAC and production operational acceptance remain outstanding.
+
+## Automatic credential renewal validation
+
+Validated on 12 November 2026 on macOS arm64 with Go 1.27.3:
+
+- `sh scripts/check.sh` passed for all four modules: tests, race detection, vet,
+  native binaries and Windows amd64 Agent cross-build.
+- Central tests verify schema-1-to-2 migration, atomic credential/receipt replacement,
+  rollback on an injected write failure, persistent replay after restart and old-token
+  expiry, five-minute replay cutoff, changed-payload rejection, superseded-result
+  rejection, and old-token denial on telemetry and fresh rotation requests.
+- Agent tests verify durable pending intent, same-request recovery after a lost response
+  and both stores reopening, encrypted atomic local replacement, invalid-response
+  rejection, expiry fail-closed behavior and recovery of already-pending expired tokens.
+- Storage tests inject failure while clearing rotation intent: the old credential and
+  intent both survive; successful replacement survives reopening with no plaintext token.
+- Final scheduler refinement was followed by race tests for Agent app/storage and central:
+  an hourly telemetry interval renews early and retries a lost rotation response within
+  seconds instead of waiting for the next hourly sample. These tests passed.
+- Final Agent/central vet, native builds and both Windows amd64 cross-builds passed.
+  `python3 scripts/central-smoke.py` passed with the updated binaries, retaining the
+  device identity and history and resuming telemetry after process restart.
+
+Renewal starts one hour before expiry or two reporting intervals, whichever is longer.
+Pending rotation uses an independent retry timer with backoff capped at 30 seconds.
+The five-minute server replay window remains a deliberate bound: longer outages after
+an unreceived committed rotation, or offline expiry before rotation, require operator
+recovery. Revocation, identity-key replacement and native Windows acceptance remain open.
+
+## Read-only web admin validation
+
+Validated on 12 November 2026 on macOS arm64 with Go 1.27.3 and Node 26.12.0:
+
+- `sh scripts/check.sh` passed: tests, race detection and vet across all four modules,
+  native Agent/mock/central builds and the Windows amd64 Agent cross-build.
+- Admin JavaScript syntax checks and all five Node tests passed, covering login,
+  filters/pagination, safe text rendering, unknown telemetry, logout/401 handling,
+  late-response isolation and stale-data recovery.
+- `node scripts/admin-smoke.mjs` passed against the actual server in isolated headless
+  Chrome: login, server search, pagination, device details, newest-first reports,
+  software search, escaped text, mobile overflow, empty browser storage and logout.
+  Screenshots are saved under the ignored `.cache/admin-qa/` directory.
+- `python3 scripts/central-smoke.py` passed with the rebuilt binaries: Agent and server
+  restarts preserve device identity and report history and resume telemetry.
+- `git diff --check` passed.
+
+The initial sandboxed Go run could not bind a test socket; verification passed with local
+socket access enabled. The initial npm invocation selected Node 20 despite Node 26 being
+on the interactive PATH; admin checks passed using `/usr/local/bin/node` explicitly.
+Use Node 24.11+ on the npm script PATH. No tests were disabled. Browser fixtures used
+temporary credentials, databases and profiles, which the smoke script cleaned up.
+
+Remote CI, native Windows execution and browsers other than Chrome were not run.
+The dashboard remains read-only and uses the shared admin bearer credential; named-user
+login, SSO/RBAC and production operational acceptance remain outstanding.
+
+
+## Central deployment simulation job validation
+
+Validated on 12 November 2026 on macOS arm64 with Go 1.27.3 and Node 26.12.0:
+
+- `sh scripts/check.sh` passed: tests and race detection across all four modules, vet,
+  native Agent/mock/central builds and Windows amd64 Agent cross-build.
+- Central job tests cover schema-2-to-3 migration, signing/device binding, disabled and
+  malformed signing keys, strict creation payloads, admin/device isolation, pending
+  dispatch, ordered transitions, expiry/rejection, pending and accepted cancellation,
+  renewal revocation including receipt replay, and completion racing cancellation.
+- Restart/replay tests preserve creation, acknowledgement, lease, cancellation and status
+  results. Concurrent identical creation produces one job. Injected receipt-write failures
+  roll back both new jobs and acknowledgements. Linked retry and job pagination are tested.
+- Eight admin tests passed, including same-key retries after an uncertain mutation,
+  create/cancel/retry controls, safe text and logout isolation for late mutation responses.
+- `python3 scripts/central-jobs-smoke.py` passed against actual Agent/server processes:
+  a signed simulation resumes after both restart without another enrollment, a running
+  job confirms cancellation, an idempotent linked retry succeeds, and a hash-failure
+  simulation records its failure. The expected ordered status history is asserted.
+- `node scripts/admin-smoke.mjs` passed against the real server in isolated Chrome:
+  existing device views plus creation, pending cancellation, retry and history on desktop
+  and mobile. Screenshots of both job layouts were visually reviewed and are stored under
+  the ignored `.cache/admin-qa/` directory.
+- Final central/contracts race tests and central vet passed after additional cancellation
+  race/restart coverage; the Windows amd64 central server cross-build also passed.
+
+Local socket/process tests ran with sandbox restrictions lifted; none were skipped.
+Go caches were under `/tmp/kiosentra-job-cache`. Admin tests used the explicit Node 26
+executable because npm's script PATH can select an older Node installation on this host.
+All smoke credentials, state and browser profiles were temporary and cleaned up.
+
+CI now runs the central job smoke on Linux/macOS, but remote CI was not run here.
+Native Windows execution, real installation/self-update, named admin identities,
+production signing and production operational acceptance remain unverified or unavailable.
+Creation is disabled without the separately configured development signing key.
+
+## Central job history pagination
+
+Validated on 13 November 2026:
+
+- Central unit tests and the server module race-enabled suite passed; server vet passed
+  using `GOCACHE=/tmp/kiosentra-job-cache` after the default cache hit a sandbox restriction.
+- Regression coverage traverses more than 100 events, resumes after server restart and
+  a new receipt, and verifies descending ordering, no duplicates, complete older history,
+  empty final pages, invalid limits/cursors and rejection of device credentials.
+- Job detail preserves its default newest-100 response and adds `nextCursor`; callers can
+  request 1–100 events and traverse older receipts. The web admin still displays only
+  the initial page. No schema migration or receipt deletion is involved.
+
+## Admin job history pagination
+
+Validated on 13 November 2026:
+
+- All 10 admin Node tests passed, including older/newer history navigation,
+  failed-page retry without cursor advancement, refresh on the current page,
+  reset when selecting another job, disabled controls during loading and
+  late-response isolation after logout.
+- API coverage verifies cursor encoding, the 100-event limit, invalid job IDs
+  and propagation of request cancellation.
+- JavaScript syntax checks for both admin modules and `git diff --check` passed.
+
+This extends the server pagination recorded above to the web admin. No server
+behavior or schema changed. Browser smoke tests and native Windows execution
+were not rerun for this UI change.
+
+## Admin job history browser validation
+
+Validated on 13 November 2026 with Node 26.12.0 and isolated headless Chrome:
+
+- Rebuilt the central server using Go 1.27.3.
+- Extended `scripts/admin-smoke.mjs` to create 105 real job receipts through the
+  API and verify the first 100 events, the remaining five events, older/newer
+  navigation, disabled end-of-history controls and refresh on the older page.
+- The live browser smoke passed on desktop and mobile, including existing login,
+  device search/pagination, reports, safe text rendering, simulation mutations,
+  empty browser storage and logout checks. No browser runtime exceptions occurred.
+- Mobile history fits the viewport without horizontal overflow. History screenshots
+  are stored in `.cache/admin-qa/job-history.png` and `mobile-job-history.png`.
+
+The sandbox initially denied the loopback listener; the smoke passed with local
+socket access enabled. The script cleaned up its server, Chrome process, isolated
+browser profile and database. Native Windows and other browsers remain unverified.

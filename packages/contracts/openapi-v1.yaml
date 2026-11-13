@@ -60,7 +60,7 @@
       "post": {
         "operationId": "rotateCredential",
         "summary": "rotateCredential",
-        "description": "Authenticated rotation retains the enrolled public key. Retry the same idempotency key to recover a lost response. Mock allows the old token only for that rotation retry for five minutes. Automatic agent rotation is deferred.",
+        "description": "Authenticated rotation retains the enrolled public key. Retry the same idempotency key to recover a lost response. Central and mock allow the old token only for that exact rotation retry for five minutes. Agent renews one hour before expiry with durable intent and atomic local credential replacement. Expired credentials without a replayable committed rotation require operator recovery.",
         "responses": {
           "200": {
             "description": "Success",
@@ -301,7 +301,7 @@
       "get": {
         "operationId": "listJobs",
         "summary": "listJobs",
-        "description": "Unacknowledged jobs with valid leases, ordered by stable ID. Cursor is the last returned ID; empty nextCursor means end. Re-poll from the beginning on each synchronization cycle.",
+        "description": "Unacknowledged jobs with valid leases, ordered by stable ID. Cursor is the last returned ID; empty nextCursor means end. Re-poll from the beginning on each synchronization cycle. Central also excludes cancelled jobs.",
         "responses": {
           "200": {
             "description": "Success",
@@ -349,7 +349,7 @@
       "post": {
         "operationId": "acknowledgeJob",
         "summary": "acknowledgeJob",
-        "description": "Rejected jobs require no status report. Idempotent decisions are immutable. Phase 2 agent rejects all jobs safely.",
+        "description": "Rejected jobs require no status report. Idempotent decisions are immutable. Central dispatches only explicitly enabled signed deployment simulations; other Agents reject jobs safely.",
         "responses": {
           "204": {
             "description": "Accepted; no response body"
@@ -395,7 +395,7 @@
       "post": {
         "operationId": "reportJobStatus",
         "summary": "reportJobStatus",
-        "description": "",
+        "description": "Accepted jobs follow the deployment simulation transition graph. Central persists ordered delayed reports even after cancellation or lease expiry without granting execution authority. Terminal jobs reject new transitions; exact committed replays remain valid.",
         "responses": {
           "204": {
             "description": "Accepted; no response body"
@@ -441,7 +441,7 @@
       "post": {
         "operationId": "renewJobLease",
         "summary": "renewJobLease",
-        "description": "",
+        "description": "Renew an accepted nonterminal job with a live lease. Central cancellation returns 410, including for replay of an earlier committed renewal. Otherwise exact retries return the original lease; a new idempotency key is needed for a new renewal.",
         "responses": {
           "200": {
             "description": "Success",

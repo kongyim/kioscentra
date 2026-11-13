@@ -2,8 +2,10 @@
 
 Windows-first kiosk agent foundation. **Phases 1–6 implemented (deployment and update phases are simulation-only)**: a runnable Go agent,
 versioned API contract, durable local state, and a development central-server mock.
-A desktop-tag build adds the local Wails console. The production server, admin dashboard,
-software installation and self-update are **not implemented**.
+A desktop-tag build adds the local Wails console. A persistent, single-instance **central server MVP**
+now supports enrollment, telemetry, authenticated device queries and **signed deployment simulation jobs**.
+The **web admin** provides device lists, details, report history and simulation controls. Software installation and self-update
+are **not implemented**; this is not production-ready.
 
 ## Layout
 
@@ -11,10 +13,12 @@ software installation and self-update are **not implemented**.
 - `packages/contracts`: OpenAPI 3.1 and shared Go wire types, without backend dependencies.
 - `tools/mock-server`: isolated, in-memory development server and integration-test handler.
 - `apps/agent/frontend`: embedded React/TypeScript/MUI local console (desktop build).
-- `apps/server`, `apps/admin`, `packages/ui`: future-phase boundaries.
+- `apps/server`: SQLite-backed central server MVP; see its [setup and API guide](apps/server/README.md).
+- `apps/admin`: buildless web admin; see its [startup guide](apps/admin/README.md).
+- `packages/ui`: reserved shared UI boundary.
 - `docs`: architecture, operating instructions, API semantics, security and future designs.
 
-A third small Go module for contracts avoids making the mock depend on agent internals.
+A shared Go module for contracts avoids making either server depend on agent internals.
 The existing checkout directory may be named `kioscentra`; the product and module paths
 are consistently **Kiosentra / kiosentra**. No existing implementation was present.
 
@@ -24,16 +28,26 @@ Use Go **1.26.10 or newer supported Go 1.26/1.27 patch release**. Dependencies a
 in `go.mod` and `go.sum`; the SQLite driver is pure Go, so Windows cross-builds need no C compiler.
 
 ```sh
-go test ./apps/agent/... ./packages/contracts/... ./tools/mock-server/...
-go test -race ./apps/agent/... ./packages/contracts/... ./tools/mock-server/...
-go vet ./apps/agent/... ./packages/contracts/... ./tools/mock-server/...
+go test ./apps/agent/... ./apps/server/... ./packages/contracts/... ./tools/mock-server/...
+go test -race ./apps/agent/... ./apps/server/... ./packages/contracts/... ./tools/mock-server/...
+go vet ./apps/agent/... ./apps/server/... ./packages/contracts/... ./tools/mock-server/...
 go build -o bin/kiosentra-agent ./apps/agent/cmd/kiosentra-agent
 go build -o bin/mock-server ./tools/mock-server/cmd/mock-server
+go build -o bin/kiosentra-server ./apps/server/cmd/kiosentra-server
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/kiosentra-agent.exe ./apps/agent/cmd/kiosentra-agent
 ```
 
 Run those commands from the repository root. `go test ./...` at the workspace root is
 not the correct multi-module command. Race tests need a supported host and C toolchain.
+
+## Persistent central server
+
+For the next milestone, use the [central server MVP guide](apps/server/README.md). Unlike the mock,
+it retains registrations, report history and deduplication records across restarts. The Agent
+automatically renews its credential at least one hour before expiry, with durable retry and atomic
+local replacement. Add `--admin-directory="$PWD/apps/admin/public"` to serve the
+[web admin](apps/admin/README.md) at `/admin/`. To enable signed simulation creation, cancellation
+and retries, follow [central job management](apps/server/README.md#signed-deployment-simulation-jobs). The mock quick start below remains available for simulation testing.
 
 ## Local development
 
@@ -138,8 +152,8 @@ and [Windows Service setup](docs/deployment/windows-service.md).
 - Optional desktop build with nine service-backed pages, dark/light themes, tray and global hotkey.
 - ACL-restricted local IPC, encrypted frames and scoped, single-use maintenance authorization.
 
-The agent automatically reports inventory and read-only policy observations. It does not yet
-automatically rotate credentials or install releases. By default every job is rejected;
+The agent automatically reports inventory and read-only policy observations and renews device
+credentials before expiry. It does not install releases. By default every job is rejected;
 explicit development opt-in permits only signed simulations. See the [Phase 5 guide](docs/development/phase5.md).
 
 See [known limitations](docs/development/limitations.md) and [validation record](docs/development/validation.md).

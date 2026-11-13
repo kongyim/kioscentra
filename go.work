@@ -2,6 +2,7 @@ go 1.26.0
 
 use (
 	./apps/agent
+	./apps/server
 	./packages/contracts
 	./tools/mock-server
 )

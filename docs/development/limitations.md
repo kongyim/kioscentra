@@ -9,9 +9,11 @@
 - No installation, artifact download/signature verification, rollback or self-update execution.
 - Monitoring, inventory and read-only Windows policy observation are implemented; see
   [Phase 3 scope](phase3.md) for machine-scope discovery, partial-data and deadline limitations.
-- Credential rotation exists as a typed API and mock route, but automatic scheduling and crash-safe
-  agent credential replacement are deferred. The mock issues 24-hour credentials. Expiry stops sync
-  until explicit operator recovery; offline collection remains bounded.
+- Agent credentials renew automatically at least one hour before their 24-hour expiry (two reporting
+  intervals if longer). Rotation intent and
+  replacement are crash-safe. A lost response can be recovered with the old token for five minutes,
+  only for that exact rotation request. Offline expiry before renewal, or failure to recover within
+  that replay window, requires operator recovery; offline collection remains bounded.
 - The mock is in-memory, loopback-only and uses development authentication. Restarting it invalidates
   enrolled devices; use a fresh development state directory. Do not use it as a production server.
 - SQLite schema 3 adds update handoffs, preserving schema-1/2 state through additive migration.
@@ -41,3 +43,13 @@ The update helper can survive service exit and recover offline. Phase 7 can inst
 recovery copy and startup task for simulations; without provisioning, reboot recovery requires
 restarting the service/helper. Actual Windows reboot acceptance is pending. A failed
 simulated rollback blocks new update admission; central reporting waits for the service to return.
+
+
+Central deployment simulation jobs are persistent and available from the web admin.
+They do not install software or dispatch self-updates. Creation requires a development
+signing key; each Agent independently opts in and trusts its public key. Shared admin
+authentication still lacks named-user attribution, roles and approval policies. Cancellation
+revokes future leases, with an accepted job remaining unconfirmed until an Agent terminal
+report; new jobs are blocked meanwhile. Limits are 1,000 jobs per device and 4,096 receipts
+per job with no pruning tool. The API and web admin show job history in pages of up to 100 events, with
+cursor navigation to earlier stored history. Central schema 3 is not readable by older server binaries.

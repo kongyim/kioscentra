@@ -47,6 +47,7 @@ type Agent struct {
 	inventoryExecutable string
 	Log                 *slog.Logger
 	credential          contracts.Credential
+	rotationPending     bool
 	identity            Identity
 	hostname            string
 	failures            int
@@ -239,8 +240,8 @@ func (a *Agent) sync(ctx context.Context) error {
 		a.Client.SetCredential(v)
 		a.Log.Info("device enrolled", "device_id", v.DeviceID)
 	}
-	if !a.credential.ExpiresAt.After(time.Now()) {
-		return errors.New("device credential expired; operator recovery required (automatic rotation deferred)")
+	if e := a.renewCredential(ctx); e != nil {
+		return e
 	}
 	events, e := a.Store.Pending(ctx, 100)
 	if e != nil {
@@ -364,6 +365,9 @@ func (a *Agent) Cycle(ctx context.Context) (result error) {
 	if e := a.sync(ctx); e != nil {
 		a.failures++
 		delay := Backoff(a.failures)
+		if a.rotationPending && delay > 30*time.Second {
+			delay = 30 * time.Second
+		}
 		a.nextAttempt = time.Now().Add(delay)
 		a.Log.Warn("central sync failed", "error", e, "retry_after", delay)
 		return e
@@ -384,11 +388,16 @@ func (a *Agent) Run(ctx context.Context) error {
 			return nil
 		}
 		_ = a.Cycle(ctx)
+		var rotationRetry <-chan time.Time
+		if a.rotationPending {
+			rotationRetry = time.After(max(time.Until(a.nextAttempt), time.Second))
+		}
 		select {
 		case <-ctx.Done():
 			a.Log.Info("agent stopped")
 			return nil
 		case <-ticker.C:
+		case <-rotationRetry:
 		case action := <-a.Actions:
 			if action == "stop_service" {
 				a.Log.Info("service stopped by authorized technician")

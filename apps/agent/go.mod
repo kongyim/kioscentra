@@ -36,7 +36,10 @@ replace kiosentra/packages/contracts => ../../packages/contracts
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/wailsapp/wails/v3 v3.1.0
+	kiosentra/apps/server v0.0.0
 	kiosentra/tools/mock-server v0.0.0
 )
 
 replace kiosentra/tools/mock-server => ../../tools/mock-server
+
+replace kiosentra/apps/server => ../server

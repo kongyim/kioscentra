@@ -1,4 +1,4 @@
-name: Agent and local console
+name: Agent, central server and local console
 on: [push, pull_request]
 permissions:
   contents: read
@@ -15,16 +15,23 @@ jobs:
           go-version: '1.26.10'
           cache-dependency-path: '**/go.sum'
       - name: Unit and integration tests
-        run: go test ./apps/agent/... ./packages/contracts/... ./tools/mock-server/...
+        run: go test ./apps/agent/... ./apps/server/... ./packages/contracts/... ./tools/mock-server/...
       - name: Race detection
         if: runner.os != 'Windows'
-        run: go test -race ./apps/agent/... ./packages/contracts/... ./tools/mock-server/...
+        run: go test -race ./apps/agent/... ./apps/server/... ./packages/contracts/... ./tools/mock-server/...
       - name: Vet
-        run: go vet ./apps/agent/... ./packages/contracts/... ./tools/mock-server/...
+        run: go vet ./apps/agent/... ./apps/server/... ./packages/contracts/... ./tools/mock-server/...
       - name: Build
         run: |
           go build -o bin/kiosentra-agent ./apps/agent/cmd/kiosentra-agent
           go build -o bin/mock-server ./tools/mock-server/cmd/mock-server
+          go build -o bin/kiosentra-server ./apps/server/cmd/kiosentra-server
+      - name: Persistent central server restart smoke test
+        if: runner.os != 'Windows'
+        run: python3 scripts/central-smoke.py
+      - name: Persistent simulation job smoke test
+        if: runner.os != 'Windows'
+        run: python3 scripts/central-jobs-smoke.py
       - name: Independent update recovery smoke test
         if: runner.os != 'Windows'
         run: python3 scripts/phase6-smoke.py --protected-settings
@@ -47,6 +54,24 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: '0'
         run: go build -o bin/kiosentra-agent.exe ./apps/agent/cmd/kiosentra-agent
+
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
+      - name: Admin dependencies
+        working-directory: apps/admin
+        run: npm ci --ignore-scripts
+      - name: Admin syntax and interaction tests
+        working-directory: apps/admin
+        run: |
+          npm run check
+          npm test
 
   desktop:
     strategy:

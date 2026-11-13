@@ -1,0 +1,9 @@
+{
+  "name": "@kiosentra/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/*.test.js", "check": "node --check public/app.js && node --check public/core.js" },
+  "devDependencies": { "jsdom": "27.1.0" },
+  "engines": { "node": ">=24.11.0" }
+}
