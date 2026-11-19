@@ -1,5 +1,46 @@
 # Validation record
 
+## Phase 8 signed artifact staging — 13 November 2026
+
+- Added separately domain-signed, device/job-bound MSI authorization with a fixed
+  validity window; offline signer and standalone HTTPS staging CLI.
+- Full four-module Go unit/integration regression suite passed with local socket access.
+- `scripts/check.sh` passed across all four modules, including race tests, vet,
+  native builds and Windows amd64 cross-builds of both new tools.
+- TLS fixture tests cover real downloads, retained signed metadata, separate retry
+  directories, wrong device/trust/expiry, tampering, origin/size limits, untrusted TLS,
+  redirects, encoded responses, incomplete/oversized/hash-mismatched bytes, timeout,
+  expiry before publication and failed-attempt cleanup.
+- Signing tests verify the output signature and prevent overwriting an existing file.
+
+No real MSI execution, native Windows acceptance, Authenticode signing or production
+rollout was performed. Existing Agent and central job admission remains simulation-only.
+The staging root requires protected Windows ACL provisioning; host tests do not prove it.
+See [Phase 8](phase8.md) and the [remaining phases](roadmap.md).
+
+## Phase 9A MSI executor and fixture sources — 13 November 2026
+
+- Added a separately invoked Windows MSI executor, signed product identity, durable
+  SQLite execution intent, replay/uncertainty fences and a read-only result CLI.
+- `scripts/check.sh` passed after implementation: four-module tests/race/vet,
+  native builds and Windows amd64 cross-builds including the MSI executable.
+- Installer fixture tests cover successful execution, replay after journal reopen,
+  crash after launch, refusal of subsequent work, conflicting signed authorization,
+  metadata/byte mismatch, existing versions, interrupted execution, exit 3010/1603/1641
+  and unconfirmed installed version. Fixtures use inert bytes and a deterministic adapter.
+- A further race-enabled integration test passed from a real local HTTPS server through
+  signature/download validation and the journaled fixture adapter; reopening the journal
+  and resubmitting did not download or execute again. Persisted status was readable.
+- Windows-targeted installer/CLI vet passed. WiX source is well-formed XML.
+
+Native MSI database inspection/installation, WiX compilation, NTFS ACL checks and reboot
+acceptance were not run on this macOS host. PowerShell is not installed here, so the new
+fixture build script was not parser-checked locally. Its directory is covered by the
+existing Windows script parser check. Remote CI was not run. Phase 9B broker/central/UI
+integration remains pending; this is not a completed remote deployment feature.
+
+## Initial foundation — 2 November 2026
+
 Validated on 2 November 2026 on macOS arm64 using Go 1.26.10. Go was not on PATH;
 a temporary toolchain was downloaded under `/tmp/kiosentra-toolchain`, verified against
 the SHA-256 in the official Go release metadata, and used with temporary build/module caches.

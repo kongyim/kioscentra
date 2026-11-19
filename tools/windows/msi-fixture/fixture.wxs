@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Kiosentra MSI Acceptance Fixture" Manufacturer="Kiosentra Tests"
+           Version="1.0.0" ProductCode="$(var.ProductCode)"
+           UpgradeCode="8FA36847-94D1-4E6B-B7C5-FA54EA53763A" Scope="perMachine">
+    <MediaTemplate EmbedCab="yes" />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="FixtureDirectory" Name="KiosentraMSITestFixture">
+        <Component Id="FixtureComponent" Guid="*">
+          <File Id="FixtureFile" Source="$(sys.SOURCEFILEDIR)fixture.txt" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="FixtureFeature" Title="Disposable test fixture" Level="1">
+      <ComponentRef Id="FixtureComponent" />
+    </Feature>
+  </Package>
+</Wix>

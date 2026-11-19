@@ -55,6 +55,9 @@ func (h handler) Execute(_ []string, requests <-chan svc.ChangeRequest, status c
 	}
 }
 func Run(run func(context.Context) error) error {
+	return RunNamed("Kiosentra", run)
+}
+func RunNamed(name string, run func(context.Context) error) error {
 	ok, e := svc.IsWindowsService()
 	if e != nil {
 		return e
@@ -62,5 +65,5 @@ func Run(run func(context.Context) error) error {
 	if !ok {
 		return errors.New("--mode=service must be launched by the Windows Service Control Manager")
 	}
-	return svc.Run("Kiosentra", handler{run})
+	return svc.Run(name, handler{run})
 }

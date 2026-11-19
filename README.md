@@ -4,8 +4,8 @@ Windows-first kiosk agent foundation. **Phases 1–6 implemented (deployment and
 versioned API contract, durable local state, and a development central-server mock.
 A desktop-tag build adds the local Wails console. A persistent, single-instance **central server MVP**
 now supports enrollment, telemetry, authenticated device queries and **signed deployment simulation jobs**.
-The **web admin** provides device lists, details, report history and simulation controls. Software installation and self-update
-are **not implemented**; this is not production-ready.
+The **web admin** provides device lists, details, report history and simulation controls. Agent-dispatched software installation and self-update
+are **not implemented**; a standalone Phase 9A MSI test executor has not passed Windows native acceptance. This is not production-ready.
 
 ## Layout
 
@@ -157,6 +157,11 @@ credentials before expiry. It does not install releases. By default every job is
 explicit development opt-in permits only signed simulations. See the [Phase 5 guide](docs/development/phase5.md).
 
 See [known limitations](docs/development/limitations.md) and [validation record](docs/development/validation.md).
+The [remaining delivery phases](docs/development/roadmap.md) track work toward production.
+[Phase 8 artifact staging](docs/development/phase8.md) adds standalone signed MSI download
+and verification tools; it does not enable installation in the Agent or dashboard.
+[Phase 9A](docs/development/phase9.md) adds an explicit elevated Windows MSI test executor,
+durable uncertainty/replay protection and WiX fixture sources. Remote integration remains pending.
 See [Phase 3 behavior and Windows validation](docs/development/phase3.md).
 The [Phase 4 desktop guide](docs/development/phase4.md) covers building the UI, IPC credentials,
 login startup and scoped maintenance authorization. Native Windows acceptance is still required.

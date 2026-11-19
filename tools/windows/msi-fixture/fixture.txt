@@ -1,0 +1,2 @@
+Kiosentra disposable-host MSI acceptance fixture, version 1.0.0.
+This package installs only this text file. It contains no service or custom action.

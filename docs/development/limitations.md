@@ -6,7 +6,10 @@
 - Desktop UI and authenticated local IPC require provisioning; Windows tray/hotkey/login/ACL
   behavior still needs native acceptance. Phase 7 scripts configure SCM crash recovery; native
   execution is unverified. No automatic kiosk-process restart or policy remediation.
-- No installation, artifact download/signature verification, rollback or self-update execution.
+- No installation, rollback or self-update execution in the Agent. Phase 8 adds standalone
+  signed MSI artifact staging/download tools; these do not enable Agent job execution.
+  Phase 9A adds a standalone elevated MSI test executor with host fixture tests. Native
+  package execution, privileged broker/central integration and recovery acceptance remain open.
 - Monitoring, inventory and read-only Windows policy observation are implemented; see
   [Phase 3 scope](phase3.md) for machine-scope discovery, partial-data and deadline limitations.
 - Agent credentials renew automatically at least one hour before their 24-hour expiry (two reporting

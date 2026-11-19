@@ -1,5 +1,10 @@
 # Kiosentra 程式導讀：依家個 App 點樣運作
 
+> 歷史文件：以下內容描述 2026-11-03 嘅 Phase 1／2，並非目前完成度。
+> Central server、web admin、本機 UI 同憑證續期等已於之後實作。
+> 最新狀態請睇 [README](README.md)、[驗證紀錄](docs/development/validation.md)
+> 同[後續開發 phases](docs/development/roadmap.md)。
+
 本文以 **2026-11-03 工作目錄內的原始碼**為準，寫畀未學過 Go 的讀者。目的係解釋現有程式點啟動、各部分有咩關係、資料點流動，以及目前做到邊度。這次是原始碼閱讀及文件整理，沒有啟動你現有的 Agent、讀取本機私密狀態，亦沒有重新執行測試；文中的指令供你自行操作。
 
 ## 1. 先認識依家真正有咩
